@@ -22,9 +22,9 @@
   <p class="muted">Προσθήκη πωλητών (συναδέλφων) στο σύστημα.</p>
 
   <div class="card">
-    <label>https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec (/exec)</label>
-    <input id="api" placeholder="https://script.google.com/macros/s/XXXXX/exec" />
-    <p class="muted">Αποθηκεύεται τοπικά στον browser.</p>
+    <label>Apps Script Web App URL (/exec)</label>
+    <div class="muted" style="word-break:break-all">https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRlh1A0MBsONaX-9PFcPjiVISBk3hvyxPmK5G1f6_8v7ZWATeRg/exec</div>
+    <p class="muted">Σταθερό (δεν ζητείται κάθε φορά).</p>
 
     <div class="row">
       <div>
@@ -65,14 +65,6 @@
 
 <script>
   function qs(id){ return document.getElementById(id); }
-  function saveCfg(){
-    localStorage.setItem("MYS_API", qs("api").value.trim());
-  }
-  function loadCfg(){
-    const v = localStorage.getItem("MYS_API") || "";
-    qs("api").value = v;
-  }
-
   // JSONP helper to avoid CORS limits of Apps Script
   function jsonp(api, params){
     return new Promise((resolve, reject)=>{
@@ -98,12 +90,8 @@
     });
   }
 
-  loadCfg();
-
-  qs("api").addEventListener("change", saveCfg);
-
   qs("btnSave").addEventListener("click", async ()=>{
-    const api = qs("api").value.trim();
+    const api = "https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRlh1A0MBsONaX-9PFcPjiVISBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
     saveCfg();
     qs("status").textContent = "Στέλνω…";
     qs("out").style.display = "none";
