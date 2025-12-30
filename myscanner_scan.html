@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>myscanner – Scan</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:980px;margin:16px auto;padding:0 12px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:10px 0}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    label{display:block;font-size:13px;color:#333;margin-top:10px}
+    input,select{width:100%;padding:10px;border:1px solid #ccc;border-radius:10px;font-size:16px}
+    button{padding:10px 14px;border:0;border-radius:10px;font-size:16px;cursor:pointer}
+    .muted{color:#666;font-size:13px}
+    .ok{color:#0a7}
+    .err{color:#c00}
+    #reader{width:100%;max-width:520px}
+    .tabs{display:flex;gap:10px;margin:10px 0}
+    .tab{padding:10px 12px;border-radius:10px;border:1px solid #ddd;background:#fff;cursor:pointer}
+    .tab.active{background:#111;color:#fff;border-color:#111}
+    .list{max-height:320px;overflow:auto;border:1px solid #eee;border-radius:12px}
+    .item{padding:10px;border-bottom:1px solid #eee;cursor:pointer}
+    .item:hover{background:#fafafa}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px}
+    pre{background:#fafafa;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}
+  </style>
+  <script src="https://unpkg.com/html5-qrcode@2.3.10/minified/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <h1>myscanner</h1>
+  <p class="muted" id="who">Φόρτωση…</p>
+
+  <div class="card">
+    <label>https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec (/exec)</label>
+    <input id="api" placeholder="https://script.google.com/macros/s/XXXXX/exec" />
+    <p class="muted">Αποθηκεύεται τοπικά στον browser.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tabScan">Scan</button>
+    <button class="tab" id="tabSearch">Αναζήτηση</button>
+  </div>
+
+  <div class="card" id="scanPane">
+    <div class="row">
+      <div>
+        <div id="reader"></div>
+        <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+          <button id="btnStart" style="background:#111;color:#fff;">Start camera</button>
+          <button id="btnStop">Stop</button>
+        </div>
+        <p class="muted">Αν δεν ανοίγει κάμερα: δοκίμασε Chrome και δώσε permission.</p>
+      </div>
+      <div>
+        <label>Barcode</label>
+        <input id="barcode" class="mono" placeholder="σκάναρε ή γράψε" />
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+          <button id="btnLookup">Lookup</button>
+          <button id="btnClear">Clear</button>
+        </div>
+
+        <label>Internal code</label>
+        <input id="internal_code" class="mono" placeholder="(από κατάλογο)" />
+
+        <label>Περιγραφή</label>
+        <input id="product_name" placeholder="(από κατάλογο ή χειροκίνητα)" />
+
+        <div class="row">
+          <div>
+            <label>Κατηγορία</label>
+            <input id="category" placeholder="(από κατάλογο)" />
+          </div>
+          <div>
+            <label>Μονάδα</label>
+            <input id="unit" placeholder="π.χ. τεμ / kg / lt" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Τιμή καταλόγου</label>
+            <input id="master_price" type="number" step="0.01" placeholder="(από κατάλογο)" />
+          </div>
+          <div>
+            <label>Τιμή (μπορείς να την αλλάξεις)</label>
+            <input id="price" type="number" step="0.01" placeholder="π.χ. 2.50" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>ΦΠΑ</label>
+            <select id="vat">
+              <option value="13">13%</option>
+              <option value="24">24%</option>
+              <option value="">—</option>
+            </select>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="btnSave" style="background:#111;color:#fff;width:100%;">Save</button>
+          </div>
+        </div>
+
+        <p id="status" class="muted"></p>
+        <pre id="debug" style="display:none"></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="searchPane" style="display:none">
+    <label>Λεκτική αναζήτηση (όνομα ή internal_code ή barcode)</label>
+    <input id="q" placeholder="π.χ. coca 330 ή 520123..." />
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+      <button id="btnSearch" style="background:#111;color:#fff;">Search</button>
+      <span id="searchStatus" class="muted"></span>
+    </div>
+    <div class="list" id="results" style="margin-top:12px"></div>
+  </div>
+
+<script>
+  function qs(id){ return document.getElementById(id); }
+  function getParam(name){ return new URLSearchParams(location.search).get(name) || ""; }
+
+  const store_id = getParam("store_id");
+  const token = getParam("token");
+
+  function saveCfg(){ localStorage.setItem("MYS_API", qs("api").value.trim()); }
+  function loadCfg(){ qs("api").value = localStorage.getItem("MYS_API") || ""; }
+
+  function jsonp(api, params){
+    return new Promise((resolve, reject)=>{
+      const cb = "cb_" + Math.random().toString(36).slice(2);
+      params.callback = cb;
+      const u = new URL(api);
+      Object.entries(params).forEach(([k,v])=>u.searchParams.set(k, v));
+      const s = document.createElement("script");
+      window[cb] = (data)=>{ cleanup(); resolve(data); };
+      s.onerror = ()=>{ cleanup(); reject(new Error("JSONP request failed")); };
+      function cleanup(){
+        try{ delete window[cb]; }catch(e){}
+        if (s.parentNode) s.parentNode.removeChild(s);
+      }
+      s.src = u.toString();
+      document.body.appendChild(s);
+    });
+  }
+
+  function setTab(tab){
+    const isScan = tab === "scan";
+    qs("tabScan").classList.toggle("active", isScan);
+    qs("tabSearch").classList.toggle("active", !isScan);
+    qs("scanPane").style.display = isScan ? "block" : "none";
+    qs("searchPane").style.display = isScan ? "none" : "block";
+  }
+
+  function fillProduct(p){
+    qs("internal_code").value = p.internal_code || "";
+    qs("product_name").value = p.product_name || "";
+    qs("category").value = p.category || "";
+    qs("unit").value = p.unit || "";
+    qs("master_price").value = (p.price ?? "");
+    if(!qs("price").value) qs("price").value = (p.price ?? "");
+  }
+
+  async function storeInfo(){
+    const api = qs("api").value.trim();
+    if(!api) return;
+    try{
+      const res = await jsonp(api, {action:"store_info", store_id, token});
+      if(res.ok){
+        qs("who").textContent = `Κατάστημα: ${res.store_name} (${store_id})`;
+      }else{
+        qs("who").innerHTML = `<span class="err">Μη έγκυρο link.</span>`;
+      }
+    }catch(e){
+      qs("who").innerHTML = `<span class="err">Δεν επικοινωνεί με server.</span>`;
+    }
+  }
+
+  async function lookup(){
+    const api = qs("api").value.trim();
+    saveCfg();
+    qs("status").textContent = "Lookup…";
+    qs("debug").style.display = "none";
+    try{
+      if(!api) throw new Error("Βάλε Apps Script URL.");
+      const barcode = qs("barcode").value.trim();
+      if(!barcode) throw new Error("Βάλε barcode.");
+      const res = await jsonp(api, {action:"store_lookup", store_id, token, barcode});
+      if(!res.ok) throw new Error(res.error || "lookup failed");
+      fillProduct(res.product || {});
+      qs("status").innerHTML = '<span class="ok">OK</span>';
+      qs("debug").style.display = "block";
+      qs("debug").textContent = JSON.stringify(res, null, 2);
+    }catch(e){
+      qs("status").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+    }
+  }
+
+  async function saveEntry(){
+    const api = qs("api").value.trim();
+    saveCfg();
+    qs("status").textContent = "Αποθήκευση…";
+    qs("debug").style.display = "none";
+    try{
+      if(!api) throw new Error("Βάλε Apps Script URL.");
+      const payload = {
+        action:"store_scan",
+        store_id, token,
+        barcode: qs("barcode").value.trim(),
+        price: qs("price").value,
+        vat: qs("vat").value,
+        unit: qs("unit").value.trim(),
+        internal_code: qs("internal_code").value.trim(),
+        product_name: qs("product_name").value.trim(),
+        category: qs("category").value.trim()
+      };
+      if(!payload.barcode) throw new Error("Λείπει barcode.");
+      if(!(Number(payload.price) > 0)) throw new Error("Βάλε τιμή > 0.");
+      const res = await jsonp(api, payload);
+      qs("debug").style.display = "block";
+      qs("debug").textContent = JSON.stringify(res, null, 2);
+      if(!res.ok){
+        if(res.error === "test_limit_reached"){
+          throw new Error("TEST όριο: ολοκληρώθηκαν οι 10 καταχωρήσεις.");
+        }
+        throw new Error(res.error || "save failed");
+      }
+      qs("status").innerHTML = '<span class="ok">Saved</span>';
+      qs("barcode").select();
+    }catch(e){
+      qs("status").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+    }
+  }
+
+  async function search(){
+    const api = qs("api").value.trim();
+    saveCfg();
+    qs("searchStatus").textContent = "Ψάχνω…";
+    qs("results").innerHTML = "";
+    try{
+      if(!api) throw new Error("Βάλε Apps Script URL.");
+      const q = qs("q").value.trim();
+      if(q.length < 2) throw new Error("Γράψε τουλάχιστον 2 χαρακτήρες.");
+      const res = await jsonp(api, {action:"store_search", store_id, token, q});
+      if(!res.ok) throw new Error(res.error || "search failed");
+      const items = res.items || [];
+      if(!items.length){
+        qs("searchStatus").textContent = "Δεν βρέθηκε.";
+        return;
+      }
+      qs("searchStatus").textContent = items.length + " αποτελέσματα";
+      for(const p of items){
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+          <div><strong>${escapeHtml(p.product_name||"")}</strong></div>
+          <div class="muted mono">${escapeHtml(p.barcode||"")} • ${escapeHtml(p.internal_code||"")} • ${escapeHtml(p.category||"")} • ${escapeHtml(p.unit||"")} • ${p.price ?? ""}</div>
+        `;
+        div.onclick = ()=>{
+          setTab("scan");
+          qs("barcode").value = p.barcode || "";
+          fillProduct(p);
+        };
+        qs("results").appendChild(div);
+      }
+    }catch(e){
+      qs("searchStatus").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+    }
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
+  }
+
+  let qr;
+  async function startCam(){
+    try{
+      if(qr) return;
+      qr = new Html5Qrcode("reader");
+      const cams = await Html5Qrcode.getCameras();
+      if(!cams || !cams.length) throw new Error("No camera found");
+      const camId = cams[cams.length-1].id;
+      await qr.start(
+        camId,
+        { fps: 10, qrbox: { width: 260, height: 160 } },
+        (decodedText)=>{
+          qs("barcode").value = decodedText.trim();
+          lookup();
+        },
+        ()=>{}
+      );
+      qs("status").textContent = "Camera ON";
+    }catch(e){
+      qs("status").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+      try{ if(qr){ await qr.stop(); qr.clear(); qr=null; } }catch(_){}
+    }
+  }
+
+  async function stopCam(){
+    try{
+      if(!qr) return;
+      await qr.stop();
+      qr.clear();
+      qr = null;
+      qs("status").textContent = "Camera OFF";
+    }catch(e){
+      qs("status").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+    }
+  }
+
+  loadCfg();
+  qs("api").addEventListener("change", ()=>{ saveCfg(); storeInfo(); });
+
+  qs("tabScan").onclick = ()=>setTab("scan");
+  qs("tabSearch").onclick = ()=>setTab("search");
+
+  qs("btnStart").onclick = startCam;
+  qs("btnStop").onclick = stopCam;
+
+  qs("btnLookup").onclick = lookup;
+  qs("btnSave").onclick = saveEntry;
+  qs("btnClear").onclick = ()=>{
+    qs("barcode").value="";
+    qs("internal_code").value="";
+    qs("product_name").value="";
+    qs("category").value="";
+    qs("unit").value="";
+    qs("master_price").value="";
+    qs("price").value="";
+    qs("status").textContent="";
+    qs("debug").style.display="none";
+  };
+
+  qs("btnSearch").onclick = search;
+  qs("q").addEventListener("keydown", (e)=>{ if(e.key==="Enter") search(); });
+
+  if(!store_id || !token){
+    qs("who").innerHTML = '<span class="err">Λείπει store_id ή token στο link.</span>';
+  }else{
+    storeInfo();
+  }
+</script>
+</body>
+</html>

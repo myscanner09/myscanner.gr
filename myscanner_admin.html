@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>myscanner – Admin</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:900px;margin:24px auto;padding:0 12px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}
+    label{display:block;font-size:13px;color:#333;margin-top:10px}
+    input,select{width:100%;padding:10px;border:1px solid #ccc;border-radius:10px;font-size:16px}
+    button{padding:10px 14px;border:0;border-radius:10px;font-size:16px;cursor:pointer}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .muted{color:#666;font-size:13px}
+    pre{background:#fafafa;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}
+    .ok{color:#0a7}
+    .err{color:#c00}
+  </style>
+</head>
+<body>
+  <h1>myscanner – Admin</h1>
+  <p class="muted">Προσθήκη πωλητών (συναδέλφων) στο σύστημα.</p>
+
+  <div class="card">
+    <label>https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec (/exec)</label>
+    <input id="api" placeholder="https://script.google.com/macros/s/XXXXX/exec" />
+    <p class="muted">Αποθηκεύεται τοπικά στον browser.</p>
+
+    <div class="row">
+      <div>
+        <label>Admin PIN</label>
+        <input id="admin_pin" placeholder="π.χ. 123456" />
+      </div>
+      <div>
+        <label>Role</label>
+        <select id="role">
+          <option value="SELLER">SELLER</option>
+          <option value="TEST">TEST</option>
+          <option value="ADMIN">ADMIN</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Όνομα</label>
+        <input id="name" placeholder="π.χ. Γιάννης" />
+      </div>
+      <div>
+        <label>Email</label>
+        <input id="email" placeholder="seller@company.com" />
+      </div>
+    </div>
+
+    <label>PIN πωλητή (4–8 ψηφία/κωδικός)</label>
+    <input id="pin" placeholder="π.χ. 2468" />
+
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+      <button id="btnSave" style="background:#111;color:#fff;">Add Seller</button>
+      <span id="status" class="muted"></span>
+    </div>
+
+    <pre id="out" style="display:none"></pre>
+  </div>
+
+<script>
+  function qs(id){ return document.getElementById(id); }
+  function saveCfg(){
+    localStorage.setItem("MYS_API", qs("api").value.trim());
+  }
+  function loadCfg(){
+    const v = localStorage.getItem("MYS_API") || "";
+    qs("api").value = v;
+  }
+
+  // JSONP helper to avoid CORS limits of Apps Script
+  function jsonp(api, params){
+    return new Promise((resolve, reject)=>{
+      const cb = "cb_" + Math.random().toString(36).slice(2);
+      params.callback = cb;
+      const u = new URL(api);
+      Object.entries(params).forEach(([k,v])=>u.searchParams.set(k, v));
+      const s = document.createElement("script");
+      window[cb] = (data)=>{
+        cleanup();
+        resolve(data);
+      };
+      s.onerror = ()=>{
+        cleanup();
+        reject(new Error("JSONP request failed"));
+      };
+      function cleanup(){
+        try{ delete window[cb]; }catch(e){}
+        if (s.parentNode) s.parentNode.removeChild(s);
+      }
+      s.src = u.toString();
+      document.body.appendChild(s);
+    });
+  }
+
+  loadCfg();
+
+  qs("api").addEventListener("change", saveCfg);
+
+  qs("btnSave").addEventListener("click", async ()=>{
+    const api = qs("api").value.trim();
+    saveCfg();
+    qs("status").textContent = "Στέλνω…";
+    qs("out").style.display = "none";
+    qs("out").textContent = "";
+    try{
+      if(!api) throw new Error("Βάλε Apps Script URL.");
+      const payload = {
+        action: "admin_add_seller",
+        admin_pin: qs("admin_pin").value.trim(),
+        name: qs("name").value.trim(),
+        email: qs("email").value.trim(),
+        pin: qs("pin").value.trim(),
+        role: qs("role").value.trim()
+      };
+      const res = await jsonp(api, payload);
+      qs("out").style.display = "block";
+      qs("out").textContent = JSON.stringify(res, null, 2);
+      if(res.ok){
+        qs("status").innerHTML = '<span class="ok">OK</span>';
+      }else{
+        qs("status").innerHTML = '<span class="err">ERROR</span>';
+      }
+    }catch(e){
+      qs("status").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+    }
+  });
+</script>
+</body>
+</html>

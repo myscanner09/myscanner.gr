@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>myscanner – Πωλητής</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:980px;margin:24px auto;padding:0 12px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}
+    label{display:block;font-size:13px;color:#333;margin-top:10px}
+    input,select{width:100%;padding:10px;border:1px solid #ccc;border-radius:10px;font-size:16px}
+    button{padding:10px 14px;border:0;border-radius:10px;font-size:16px;cursor:pointer}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .muted{color:#666;font-size:13px}
+    pre{background:#fafafa;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}
+    .ok{color:#0a7}
+    .err{color:#c00}
+    .links a{display:block;word-break:break-all;margin:6px 0}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#f3f3f3;font-size:12px}
+  </style>
+</head>
+<body>
+  <h1>myscanner – Πωλητής</h1>
+
+  <div class="card">
+    <label>https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec (/exec)</label>
+    <input id="api" placeholder="https://script.google.com/macros/s/XXXXX/exec" />
+    <p class="muted">Αποθηκεύεται τοπικά στον browser.</p>
+  </div>
+
+  <div class="card" id="loginCard">
+    <h3>Login</h3>
+    <div class="row">
+      <div>
+        <label>Email</label>
+        <input id="email" placeholder="seller@company.com" />
+      </div>
+      <div>
+        <label>PIN</label>
+        <input id="pin" placeholder="π.χ. 2468" />
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+      <button id="btnLogin" style="background:#111;color:#fff;">Login</button>
+      <span id="loginStatus" class="muted"></span>
+    </div>
+    <pre id="loginOut" style="display:none"></pre>
+  </div>
+
+  <div class="card" id="sellerCard" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div>
+        <strong>Συνδεδεμένος:</strong> <span id="me"></span>
+        <span id="rolePill" class="pill"></span>
+      </div>
+      <button id="btnLogout">Logout</button>
+    </div>
+
+    <h3 style="margin-top:14px">Καταχώρηση νέου καταστήματος</h3>
+    <div class="row">
+      <div>
+        <label>Όνομα καταστήματος</label>
+        <input id="store_name" placeholder="π.χ. Mini Market ABC" />
+      </div>
+      <div>
+        <label>Email καταστήματος</label>
+        <input id="store_email" placeholder="store@email.com" />
+      </div>
+    </div>
+
+    <label>Τύπος</label>
+    <select id="is_test">
+      <option value="FALSE">Κανονικό</option>
+      <option value="TRUE">TEST (όριο 10 καταχωρήσεις)</option>
+    </select>
+
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+      <button id="btnAddStore" style="background:#111;color:#fff;">Δημιουργία</button>
+      <span id="storeStatus" class="muted"></span>
+    </div>
+
+    <div class="card" id="resultCard" style="display:none;margin-top:14px">
+      <h4>Αποτέλεσμα</h4>
+      <div class="links">
+        <div><strong>Scan link:</strong> <a id="scan_url" href="#" target="_blank"></a></div>
+        <div><strong>Store Sheet:</strong> <a id="sheet_url" href="#" target="_blank"></a></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <button id="btnCopyInvite">Copy invite message</button>
+        <button id="btnCopyScan">Copy scan link</button>
+      </div>
+      <pre id="storeOut" style="margin-top:10px"></pre>
+    </div>
+  </div>
+
+<script>
+  function qs(id){ return document.getElementById(id); }
+
+  function saveCfg(){ localStorage.setItem("MYS_API", qs("api").value.trim()); }
+  function loadCfg(){
+    qs("api").value = localStorage.getItem("MYS_API") || "";
+    const ses = localStorage.getItem("MYS_SES");
+    if(ses){
+      try{ window.session = JSON.parse(ses); }catch(e){}
+    }
+  }
+
+  function jsonp(api, params){
+    return new Promise((resolve, reject)=>{
+      const cb = "cb_" + Math.random().toString(36).slice(2);
+      params.callback = cb;
+      const u = new URL(api);
+      Object.entries(params).forEach(([k,v])=>u.searchParams.set(k, v));
+      const s = document.createElement("script");
+      window[cb] = (data)=>{ cleanup(); resolve(data); };
+      s.onerror = ()=>{ cleanup(); reject(new Error("JSONP request failed")); };
+      function cleanup(){
+        try{ delete window[cb]; }catch(e){}
+        if (s.parentNode) s.parentNode.removeChild(s);
+      }
+      s.src = u.toString();
+      document.body.appendChild(s);
+    });
+  }
+
+  function setLoggedIn(on){
+    qs("loginCard").style.display = on ? "none" : "block";
+    qs("sellerCard").style.display = on ? "block" : "none";
+  }
+
+  async function doLogin(){
+    const api = qs("api").value.trim();
+    saveCfg();
+    qs("loginStatus").textContent = "Συνδέω…";
+    qs("loginOut").style.display = "none";
+    try{
+      const email = qs("email").value.trim();
+      const pin = qs("pin").value.trim();
+      if(!api) throw new Error("Βάλε Apps Script URL.");
+      const res = await jsonp(api, {action:"seller_login", email, pin});
+      qs("loginOut").style.display = "block";
+      qs("loginOut").textContent = JSON.stringify(res, null, 2);
+      if(!res.ok) throw new Error(res.error || "login failed");
+      window.session = { email, pin, seller_id: res.seller_id, role: res.role || "SELLER" };
+      localStorage.setItem("MYS_SES", JSON.stringify(window.session));
+      qs("me").textContent = email;
+      qs("rolePill").textContent = res.role || "SELLER";
+      setLoggedIn(true);
+      qs("loginStatus").innerHTML = '<span class="ok">OK</span>';
+    }catch(e){
+      qs("loginStatus").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+    }
+  }
+
+  function logout(){
+    localStorage.removeItem("MYS_SES");
+    window.session = null;
+    setLoggedIn(false);
+  }
+
+  function copyText(t){
+    navigator.clipboard.writeText(t).catch(()=>{});
+  }
+
+  async function addStore(){
+    const api = qs("api").value.trim();
+    saveCfg();
+    qs("storeStatus").textContent = "Δημιουργώ…";
+    qs("resultCard").style.display = "none";
+    try{
+      if(!window.session) throw new Error("Δεν είσαι συνδεδεμένος.");
+      const payload = {
+        action: "seller_add_store",
+        email: window.session.email,
+        pin: window.session.pin,
+        store_name: qs("store_name").value.trim(),
+        store_email: qs("store_email").value.trim(),
+        is_test: qs("is_test").value
+      };
+      const res = await jsonp(api, payload);
+      if(!res.ok) throw new Error(res.error || "failed");
+      qs("scan_url").href = res.scan_url;
+      qs("scan_url").textContent = res.scan_url;
+      qs("sheet_url").href = res.store_sheet_url;
+      qs("sheet_url").textContent = res.store_sheet_url;
+
+      const invite =
+`myscanner – ${payload.store_name}
+Scan link:
+${res.scan_url}
+
+Sheet:
+${res.store_sheet_url}`;
+
+      qs("btnCopyInvite").onclick = ()=>copyText(invite);
+      qs("btnCopyScan").onclick = ()=>copyText(res.scan_url);
+
+      qs("storeOut").textContent = JSON.stringify(res, null, 2);
+      qs("resultCard").style.display = "block";
+      qs("storeStatus").innerHTML = '<span class="ok">OK</span>';
+    }catch(e){
+      qs("storeStatus").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+    }
+  }
+
+  loadCfg();
+  qs("api").addEventListener("change", saveCfg);
+
+  qs("btnLogin").addEventListener("click", doLogin);
+  qs("btnLogout").addEventListener("click", logout);
+  qs("btnAddStore").addEventListener("click", addStore);
+
+  if(window.session && window.session.email){
+    qs("me").textContent = window.session.email;
+    qs("rolePill").textContent = window.session.role || "SELLER";
+    setLoggedIn(true);
+  }
+</script>
+</body>
+</html>
