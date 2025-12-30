@@ -31,12 +31,10 @@
   <p class="muted" id="who">Φόρτωση…</p>
 
   <div class="card">
-    <label>https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec (/exec)</label>
-    <input id="api" placeholder="https://script.google.com/macros/s/XXXXX/exec" />
-    <p class="muted">Αποθηκεύεται τοπικά στον browser.</p>
-  </div>
-
-  <div class="tabs">
+  <div class="muted"><strong>Server:</strong> συνδεδεμένο (Apps Script)</div>
+  <div class="muted" style="margin-top:6px;word-break:break-all">https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRlh1A0MBsONaX-9PFcPjiVISBk3hvyxPmK5G1f6_8v7ZWATeRg/exec</div>
+</div>
+<div class="tabs">
     <button class="tab active" id="tabScan">Scan</button>
     <button class="tab" id="tabSearch">Αναζήτηση</button>
   </div>
@@ -125,9 +123,6 @@
   const store_id = getParam("store_id");
   const token = getParam("token");
 
-  function saveCfg(){ localStorage.setItem("MYS_API", qs("api").value.trim()); }
-  function loadCfg(){ qs("api").value = localStorage.getItem("MYS_API") || ""; }
-
   function jsonp(api, params){
     return new Promise((resolve, reject)=>{
       const cb = "cb_" + Math.random().toString(36).slice(2);
@@ -164,7 +159,7 @@
   }
 
   async function storeInfo(){
-    const api = qs("api").value.trim();
+    const api = "https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRlh1A0MBsONaX-9PFcPjiVISBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
     if(!api) return;
     try{
       const res = await jsonp(api, {action:"store_info", store_id, token});
@@ -179,7 +174,7 @@
   }
 
   async function lookup(){
-    const api = qs("api").value.trim();
+    const api = "https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRlh1A0MBsONaX-9PFcPjiVISBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
     saveCfg();
     qs("status").textContent = "Lookup…";
     qs("debug").style.display = "none";
@@ -199,7 +194,7 @@
   }
 
   async function saveEntry(){
-    const api = qs("api").value.trim();
+    const api = "https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRlh1A0MBsONaX-9PFcPjiVISBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
     saveCfg();
     qs("status").textContent = "Αποθήκευση…";
     qs("debug").style.display = "none";
@@ -235,7 +230,7 @@
   }
 
   async function search(){
-    const api = qs("api").value.trim();
+    const api = "https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRlh1A0MBsONaX-9PFcPjiVISBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
     saveCfg();
     qs("searchStatus").textContent = "Ψάχνω…";
     qs("results").innerHTML = "";
@@ -276,6 +271,11 @@
 
   let qr;
   async function startCam(){
+    if (typeof Html5Qrcode === "undefined") {
+      qs("status").innerHTML = '<span class="err">Δεν φορτώθηκε ο scanner (html5-qrcode). Άνοιξε τη σελίδα σε HTTPS και με internet.</span>';
+      return;
+    }
+
     try{
       if(qr) return;
       qr = new Html5Qrcode("reader");
@@ -309,9 +309,6 @@
       qs("status").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
     }
   }
-
-  loadCfg();
-  qs("api").addEventListener("change", ()=>{ saveCfg(); storeInfo(); });
 
   qs("tabScan").onclick = ()=>setTab("scan");
   qs("tabSearch").onclick = ()=>setTab("search");
