@@ -6,37 +6,24 @@
   <title>myscanner • Admin</title>
   <meta name="theme-color" content="#0b0f1a" />
   <style>
-    :root{
-      --bg:#0b0f1a;--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.09);
-      --b:rgba(255,255,255,.12);--t:rgba(255,255,255,.92);--m:rgba(255,255,255,.68);
-      --ok:#37d67a;--bad:#ff4d4d;--w:#fff;--k:#111;--warn:#ffd166;
-    }
+    :root{--bg:#0b0f1a;--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.09);--b:rgba(255,255,255,.12);--t:rgba(255,255,255,.92);--m:rgba(255,255,255,.68);--ok:#37d67a;--bad:#ff4d4d;--w:#fff;--k:#111;--warn:#ffd166;}
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    header{position:sticky;top:0;z-index:50;background:rgba(11,15,26,.78);backdrop-filter:blur(10px);
-      border-bottom:1px solid var(--b);padding:14px}
+    header{position:sticky;top:0;z-index:50;background:rgba(11,15,26,.78);backdrop-filter:blur(10px);border-bottom:1px solid var(--b);padding:14px}
     .h{max-width:980px;margin:0 auto;display:flex;gap:12px;align-items:center;justify-content:space-between}
     .brand{display:flex;gap:10px;align-items:center;min-width:0}
     .logo{width:36px;height:36px;border-radius:14px;background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,.04));border:1px solid var(--b)}
     h1{margin:0;font-size:22px;line-height:1.1}
     .sub{margin-top:2px;font-size:12px;color:var(--m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62vw}
-    .wrap{max-width:980px;margin:0 auto;padding:14px 14px calc(18px + env(safe-area-inset-bottom))}
+    .wrap{max-width:980px;margin:0 auto;padding:14px 14px calc(84px + env(safe-area-inset-bottom))}
     .card{background:var(--card);border:1px solid var(--b);border-radius:18px;padding:14px;margin:12px 0}
     label{display:block;margin:10px 0 6px;font-size:12px;color:var(--m)}
-    input,select{
-      width:100%;border-radius:16px;border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.06);color:var(--t);padding:12px;font-size:16px;outline:none
-    }
-    input::placeholder{color:rgba(255,255,255,.38)}
-    button{
-      border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--t);
-      padding:12px 14px;border-radius:16px;font-size:16px;font-weight:800;cursor:pointer
-    }
+    input,select{width:100%;border-radius:16px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--t);padding:12px;font-size:16px;outline:none}
+    input:disabled{opacity:.7}
+    button{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--t);padding:12px 14px;border-radius:16px;font-size:16px;font-weight:800}
     button.primary{background:var(--w);color:var(--k)}
-    button:disabled{opacity:.5;cursor:not-allowed}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    @media(max-width:820px){.row{grid-template-columns:1fr}.sub{max-width:50vw}}
-    .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
+    button:disabled{opacity:.5}
+    .btnrow{display:flex;gap:10px;flex-wrap:wrap}
     .grow{flex:1;min-width:160px}
     .msg{margin-top:10px;font-size:13px;color:var(--m);line-height:1.35}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;word-break:break-all;font-size:12px;color:var(--m)}
@@ -44,12 +31,8 @@
     .bad{color:var(--bad);font-weight:900}
     .warn{color:var(--warn);font-weight:900}
     pre{background:var(--card2);border:1px solid var(--b);border-radius:16px;padding:12px;overflow:auto;margin:12px 0 0}
-    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;
-      background:rgba(255,255,255,.10);border:1px solid var(--b);font-size:12px;color:var(--m)}
-    .pill.ok{color:var(--ok)} .pill.bad{color:var(--bad)} .pill.warn{color:var(--warn)}
   </style>
 </head>
-
 <body>
 <header>
   <div class="h">
@@ -65,13 +48,23 @@
 </header>
 
 <div class="wrap">
-
   <div class="card">
     <div class="msg">
-      Αυτό το Admin μιλάει απευθείας με το Apps Script (JSONP). Αν δεις <span class="mono">unknown_action</span>,
-      τότε το Web App που δείχνεις δεν έχει το action που ζητάς.
+      Στόχος: να ΜΗ φαίνεται το Apps Script URL στο UI. Άρα δουλεύουμε με ένα endpoint τύπου
+      <span class="mono">/api</span> (π.χ. Cloudflare Worker/Proxy που κάνει proxy στο script.google.com)
     </div>
-    <div class="mono" id="apiLine"></div>
+
+    <label>Server endpoint (δικό σου proxy – όχι Apps Script)</label>
+    <div class="row">
+      <div>
+        <input id="api" placeholder="π.χ. https://myscanner.gr/api" />
+        <div class="msg">Αν το αφήσεις κενό, θα χρησιμοποιήσει αυτόματα: <span class="mono" id="apiAuto">…</span></div>
+      </div>
+      <div>
+        <button id="btnSaveCfg" type="button" class="primary" style="width:100%">Αποθήκευση ρύθμισης</button>
+        <div class="msg">Αποθηκεύεται τοπικά στον browser.</div>
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -116,8 +109,7 @@
 </div>
 
 <script>
-  // ✅ Το Apps Script URL που ζήτησες
-  const API = "https://script.google.com/macros/s/AKfycbwaZmPMd2j0_ZUTC7VfhcPJvJLKioE_FotJg-_vl-_LIRelI9fBCeJqVz0-6Re9Y-fXdA/exec";
+  const CFG_KEY = "myscanner_admin_cfg_v1";
 
   function qs(id){ return document.getElementById(id); }
 
@@ -128,12 +120,30 @@
     p.textContent = text;
   }
 
+  function apiAutoDefault(){
+    return location.origin.replace(/\/$/, "") + "/api";
+  }
+
+  function loadCfg(){
+    try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; }
+  }
+
+  function saveCfg(obj){
+    localStorage.setItem(CFG_KEY, JSON.stringify(obj||{}));
+  }
+
+  function getApi(){
+    const cfg = loadCfg();
+    const manual = (qs("api").value||"").trim();
+    const saved = (cfg.api||"").trim();
+    return manual || saved || apiAutoDefault();
+  }
+
   function validateEmail(s){
     s = String(s||"").trim();
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
   }
 
-  // JSONP helper (Apps Script friendly)
   function jsonp(api, params){
     return new Promise((resolve, reject)=>{
       const cb = "cb_" + Math.random().toString(36).slice(2);
@@ -149,8 +159,15 @@
         if (s.parentNode) s.parentNode.removeChild(s);
       }
 
-      window[cb] = (data)=>{ cleanup(); resolve(data); };
-      s.onerror = ()=>{ cleanup(); reject(new Error("JSONP request failed")); };
+      window[cb] = (data)=>{
+        cleanup();
+        resolve(data);
+      };
+
+      s.onerror = ()=>{
+        cleanup();
+        reject(new Error("JSONP request failed"));
+      };
 
       s.src = u.toString();
       document.body.appendChild(s);
@@ -168,22 +185,42 @@
     qs("name").focus();
   }
 
-  // init
-  (function init(){
-    qs("apiLine").textContent = API;
+  async function pingServer(){
     setPill("server: …", "");
-    qs("name").focus();
+  }
+
+  (function init(){
+    qs("apiAuto").textContent = apiAutoDefault();
+    const cfg = loadCfg();
+    if (cfg.api) qs("api").value = cfg.api;
 
     ["admin_pin","pin","email","name"].forEach(id=>{
       qs(id).addEventListener("keydown", (e)=>{
         if(e.key === "Enter") qs("btnSave").click();
       });
     });
+
+    pingServer();
+    qs("name").focus();
   })();
+
+  qs("btnSaveCfg").addEventListener("click", ()=>{
+    const v = (qs("api").value||"").trim();
+    if (v){
+      try{ new URL(v); }catch(e){
+        qs("status").innerHTML = '<span class="bad">Το endpoint δεν είναι έγκυρο URL.</span>';
+        return;
+      }
+    }
+    saveCfg({ api: v });
+    qs("status").innerHTML = '<span class="ok">OK • Αποθηκεύτηκε</span>';
+  });
 
   qs("btnClear").addEventListener("click", resetForm);
 
   qs("btnSave").addEventListener("click", async ()=>{
+    const api = getApi();
+
     qs("status").innerHTML = '<span class="warn">Στέλνω…</span>';
     qs("out").style.display = "none";
     qs("out").textContent = "";
@@ -201,9 +238,18 @@
       if(!email || !validateEmail(email)) throw new Error("Λάθος email.");
       if(!pin || pin.length < 4) throw new Error("PIN πωλητή: βάλε τουλάχιστον 4 χαρακτήρες.");
 
-      const payload = { action:"admin_add_seller", admin_pin, name, email, pin, role };
+      saveCfg({ api: (qs("api").value||"").trim() });
 
-      const res = await jsonp(API, payload);
+      const payload = {
+        action: "admin_add_seller",
+        admin_pin,
+        name,
+        email,
+        pin,
+        role
+      };
+
+      const res = await jsonp(api, payload);
 
       qs("out").style.display = "block";
       qs("out").textContent = JSON.stringify(res, null, 2);
@@ -211,7 +257,6 @@
       if(res && res.ok){
         setPill("server: online", "ok");
         qs("status").innerHTML = '<span class="ok">OK • Προστέθηκε</span>';
-        // καθάρισμα (κρατάμε admin pin)
         qs("name").value = "";
         qs("email").value = "";
         qs("pin").value = "";
@@ -223,7 +268,7 @@
       }
 
     }catch(e){
-      setPill(navigator.onLine ? "server: error" : "server: offline", "bad");
+      setPill(navigator.onLine ? "server: error" : "server: offline", navigator.onLine ? "bad" : "bad");
       qs("status").innerHTML = '<span class="bad">'+(e.message||e)+'</span>';
     }finally{
       qs("btnSave").disabled = false;
