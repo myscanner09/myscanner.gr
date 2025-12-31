@@ -2,48 +2,111 @@
 <html lang="el">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>myscanner – Πωλητής</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>myscanner • Πωλητής</title>
+  <meta name="theme-color" content="#0b0f1a" />
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:980px;margin:24px auto;padding:0 12px}
-    .card{border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}
-    label{display:block;font-size:13px;color:#333;margin-top:10px}
-    input,select{width:100%;padding:10px;border:1px solid #ccc;border-radius:10px;font-size:16px}
-    button{padding:10px 14px;border:0;border-radius:10px;font-size:16px;cursor:pointer}
+    :root{
+      --bg:#0b0f1a;--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.09);
+      --b:rgba(255,255,255,.12);--t:rgba(255,255,255,.92);--m:rgba(255,255,255,.68);
+      --ok:#37d67a;--bad:#ff4d4d;--w:#fff;--k:#111;--warn:#ffd166;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    header{position:sticky;top:0;z-index:50;background:rgba(11,15,26,.78);backdrop-filter:blur(10px);
+      border-bottom:1px solid var(--b);padding:14px}
+    .h{max-width:980px;margin:0 auto;display:flex;gap:12px;align-items:center;justify-content:space-between}
+    .brand{display:flex;gap:10px;align-items:center;min-width:0}
+    .logo{width:36px;height:36px;border-radius:14px;background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,.04));border:1px solid var(--b)}
+    h1{margin:0;font-size:22px;line-height:1.1}
+    .sub{margin-top:2px;font-size:12px;color:var(--m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62vw}
+    .wrap{max-width:980px;margin:0 auto;padding:14px 14px calc(18px + env(safe-area-inset-bottom))}
+    .card{background:var(--card);border:1px solid var(--b);border-radius:18px;padding:14px;margin:12px 0}
+    label{display:block;margin:10px 0 6px;font-size:12px;color:var(--m)}
+    input,select{
+      width:100%;border-radius:16px;border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.06);color:var(--t);padding:12px;font-size:16px;outline:none
+    }
+    input::placeholder{color:rgba(255,255,255,.38)}
+    button{
+      border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--t);
+      padding:12px 14px;border-radius:16px;font-size:16px;font-weight:800;cursor:pointer
+    }
+    button.primary{background:var(--w);color:var(--k)}
+    button:disabled{opacity:.5;cursor:not-allowed}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .muted{color:#666;font-size:13px}
-    pre{background:#fafafa;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}
-    .ok{color:#0a7}
-    .err{color:#c00}
-    .links a{display:block;word-break:break-all;margin:6px 0}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#f3f3f3;font-size:12px}
+    @media(max-width:820px){.row{grid-template-columns:1fr}.sub{max-width:50vw}}
+    .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
+    .grow{flex:1;min-width:160px}
+    .msg{margin-top:10px;font-size:13px;color:var(--m);line-height:1.35}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;word-break:break-all;font-size:12px;color:var(--m)}
+    .ok{color:var(--ok);font-weight:900}
+    .bad{color:var(--bad);font-weight:900}
+    .warn{color:var(--warn);font-weight:900}
+    pre{background:var(--card2);border:1px solid var(--b);border-radius:16px;padding:12px;overflow:auto;margin:12px 0 0}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;
+      background:rgba(255,255,255,.10);border:1px solid var(--b);font-size:12px;color:var(--m)}
+    .pill.ok{color:var(--ok)} .pill.bad{color:var(--bad)} .pill.warn{color:var(--warn)}
+    .links a{display:block;word-break:break-all;margin:6px 0;color:var(--w);text-decoration:none}
+    .links a:hover{text-decoration:underline}
   </style>
 </head>
+
 <body>
-  <h1>myscanner – Πωλητής</h1>
+<header>
+  <div class="h">
+    <div class="brand">
+      <div class="logo"></div>
+      <div style="min-width:0">
+        <h1>myscanner</h1>
+        <div class="sub">Πωλητής • Δημιουργία καταστημάτων</div>
+      </div>
+    </div>
+    <div id="pillServer" class="pill">server: …</div>
+  </div>
+</header>
+
+<div class="wrap">
 
   <div class="card">
-    <label>Apps Script Web App URL (/exec)</label>
-    <div class="muted" style="word-break:break-all">https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec</div>
-    <p class="muted">Σταθερό (δεν ζητείται κάθε φορά).</p>
+    <div class="msg">
+      Δεν δείχνουμε Apps Script URL. Χρησιμοποιούμε proxy endpoint (π.χ. Cloudflare Worker) όπως:
+      <span class="mono">/api</span>
+    </div>
+
+    <label>Server endpoint (proxy)</label>
+    <div class="row">
+      <div>
+        <input id="api" placeholder="π.χ. https://myscanner.gr/api" />
+        <div class="msg">Αν το αφήσεις κενό, θα χρησιμοποιήσει: <span class="mono" id="apiAuto">…</span></div>
+      </div>
+      <div>
+        <button id="btnSaveCfg" type="button" class="primary" style="width:100%">Αποθήκευση ρύθμισης</button>
+        <div class="msg">Αποθηκεύεται τοπικά στον browser.</div>
+      </div>
+    </div>
   </div>
 
   <div class="card" id="loginCard">
-    <h3>Login</h3>
+    <h3 style="margin:0 0 6px">Login</h3>
+
     <div class="row">
       <div>
         <label>Email</label>
-        <input id="email" placeholder="seller@company.com" />
+        <input id="email" inputmode="email" placeholder="seller@company.com" />
       </div>
       <div>
         <label>PIN</label>
-        <input id="pin" placeholder="π.χ. 2468" />
+        <input id="pin" inputmode="numeric" placeholder="π.χ. 2468" />
       </div>
     </div>
-    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
-      <button id="btnLogin" style="background:#111;color:#fff;">Login</button>
-      <span id="loginStatus" class="muted"></span>
+
+    <div class="btnrow">
+      <button id="btnLogin" class="primary grow" type="button">Login</button>
+      <button id="btnLoginClear" class="grow" type="button">Clear</button>
+      <span id="loginStatus" class="msg" style="margin:0"></span>
     </div>
+
     <pre id="loginOut" style="display:none"></pre>
   </div>
 
@@ -53,10 +116,11 @@
         <strong>Συνδεδεμένος:</strong> <span id="me"></span>
         <span id="rolePill" class="pill"></span>
       </div>
-      <button id="btnLogout">Logout</button>
+      <button id="btnLogout" type="button">Logout</button>
     </div>
 
-    <h3 style="margin-top:14px">Καταχώρηση νέου καταστήματος</h3>
+    <h3 style="margin-top:14px;margin-bottom:6px">Καταχώρηση νέου καταστήματος</h3>
+
     <div class="row">
       <div>
         <label>Όνομα καταστήματος</label>
@@ -64,55 +128,95 @@
       </div>
       <div>
         <label>Email καταστήματος</label>
-        <input id="store_email" placeholder="store@email.com" />
+        <input id="store_email" inputmode="email" placeholder="store@email.com" />
       </div>
     </div>
 
     <label>Τύπος</label>
     <select id="is_test">
-      <option value="FALSE">Κανονικό</option>
+      <option value="FALSE" selected>Κανονικό</option>
       <option value="TRUE">TEST (όριο 10 καταχωρήσεις)</option>
     </select>
 
-    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
-      <button id="btnAddStore" style="background:#111;color:#fff;">Δημιουργία</button>
-      <span id="storeStatus" class="muted"></span>
+    <div class="btnrow">
+      <button id="btnAddStore" class="primary grow" type="button">Δημιουργία</button>
+      <button id="btnStoreClear" class="grow" type="button">Clear</button>
+      <span id="storeStatus" class="msg" style="margin:0"></span>
     </div>
 
     <div class="card" id="resultCard" style="display:none;margin-top:14px">
-      <h4>Αποτέλεσμα</h4>
+      <h4 style="margin:0 0 8px">Αποτέλεσμα</h4>
       <div class="links">
-        <div><strong>Scan link:</strong> <a id="scan_url" href="#" target="_blank"></a></div>
-        <div><strong>Store Sheet:</strong> <a id="sheet_url" href="#" target="_blank"></a></div>
+        <div><strong>Scan link:</strong> <a id="scan_url" href="#" target="_blank" rel="noopener"></a></div>
+        <div><strong>Store Sheet:</strong> <a id="sheet_url" href="#" target="_blank" rel="noopener"></a></div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-        <button id="btnCopyInvite">Copy invite message</button>
-        <button id="btnCopyScan">Copy scan link</button>
+
+      <div class="btnrow">
+        <button id="btnCopyInvite" type="button" class="grow">Copy invite message</button>
+        <button id="btnCopyScan" type="button" class="grow">Copy scan link</button>
       </div>
-      <pre id="storeOut" style="margin-top:10px"></pre>
+
+      <pre id="storeOut"></pre>
     </div>
   </div>
 
+</div>
+
 <script>
+  const CFG_KEY = "myscanner_seller_cfg_v1";
+  const SES_KEY = "MYS_SES";
+
   function qs(id){ return document.getElementById(id); }
 
-  catch(e){}
-    }
+  function setPill(text, cls){
+    const p = qs("pillServer");
+    p.classList.remove("ok","bad","warn");
+    if (cls) p.classList.add(cls);
+    p.textContent = text;
   }
 
+  function apiAutoDefault(){
+    return location.origin.replace(/\/$/, "") + "/api";
+  }
+
+  function loadCfg(){
+    try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; }
+  }
+  function saveCfg(obj){
+    localStorage.setItem(CFG_KEY, JSON.stringify(obj||{}));
+  }
+
+  function getApi(){
+    const cfg = loadCfg();
+    const manual = (qs("api").value||"").trim();
+    const saved = (cfg.api||"").trim();
+    return manual || saved || apiAutoDefault();
+  }
+
+  function validateEmail(s){
+    s = String(s||"").trim();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+  }
+
+  // JSONP helper
   function jsonp(api, params){
     return new Promise((resolve, reject)=>{
       const cb = "cb_" + Math.random().toString(36).slice(2);
       params.callback = cb;
+
       const u = new URL(api);
-      Object.entries(params).forEach(([k,v])=>u.searchParams.set(k, v));
+      Object.entries(params).forEach(([k,v])=>u.searchParams.set(k, String(v)));
+
       const s = document.createElement("script");
-      window[cb] = (data)=>{ cleanup(); resolve(data); };
-      s.onerror = ()=>{ cleanup(); reject(new Error("JSONP request failed")); };
+
       function cleanup(){
         try{ delete window[cb]; }catch(e){}
         if (s.parentNode) s.parentNode.removeChild(s);
       }
+
+      window[cb] = (data)=>{ cleanup(); resolve(data); };
+      s.onerror = ()=>{ cleanup(); reject(new Error("JSONP request failed")); };
+
       s.src = u.toString();
       document.body.appendChild(s);
     });
@@ -123,64 +227,126 @@
     qs("sellerCard").style.display = on ? "block" : "none";
   }
 
-  async function doLogin(){
-    const api = "https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
-    saveCfg();
-    qs("loginStatus").textContent = "Συνδέω…";
+  function loadSession(){
+    try{ return JSON.parse(localStorage.getItem(SES_KEY)||"null"); }catch(e){ return null; }
+  }
+  function saveSession(ses){
+    localStorage.setItem(SES_KEY, JSON.stringify(ses));
+  }
+
+  function copyText(t){
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(String(t||"")).catch(()=>{});
+  }
+
+  function clearLoginForm(){
+    qs("email").value = "";
+    qs("pin").value = "";
+    qs("loginStatus").textContent = "";
     qs("loginOut").style.display = "none";
+    qs("loginOut").textContent = "";
+    qs("email").focus();
+  }
+
+  function clearStoreForm(){
+    qs("store_name").value = "";
+    qs("store_email").value = "";
+    qs("is_test").value = "FALSE";
+    qs("storeStatus").textContent = "";
+    qs("resultCard").style.display = "none";
+    qs("storeOut").textContent = "";
+    qs("store_name").focus();
+  }
+
+  async function doLogin(){
+    const api = getApi();
+    // persist cfg if user typed something
+    saveCfg({ api: (qs("api").value||"").trim() });
+
+    qs("loginStatus").innerHTML = '<span class="warn">Συνδέω…</span>';
+    qs("loginOut").style.display = "none";
+    qs("loginOut").textContent = "";
+    qs("btnLogin").disabled = true;
+
     try{
       const email = qs("email").value.trim();
       const pin = qs("pin").value.trim();
-      if(!api) throw new Error("Βάλε Apps Script URL.");
-      const res = await jsonp(api, {action:"seller_login", email, pin});
+
+      if(!email || !validateEmail(email)) throw new Error("Λάθος email.");
+      if(!pin) throw new Error("Λείπει PIN.");
+
+      const res = await jsonp(api, { action:"seller_login", email, pin });
+
       qs("loginOut").style.display = "block";
       qs("loginOut").textContent = JSON.stringify(res, null, 2);
-      if(!res.ok) throw new Error(res.error || "login failed");
-      window.session = { email, pin, seller_id: res.seller_id, role: res.role || "SELLER" };
-      localStorage.setItem("MYS_SES", JSON.stringify(window.session));
+
+      if(!res || !res.ok) throw new Error(res?.error || "login_failed");
+
+      const session = { email, pin, seller_id: res.seller_id, role: res.role || "SELLER" };
+      window.session = session;
+      saveSession(session);
+
       qs("me").textContent = email;
-      qs("rolePill").textContent = res.role || "SELLER";
+      qs("rolePill").textContent = session.role;
       setLoggedIn(true);
+
+      setPill("server: online", "ok");
       qs("loginStatus").innerHTML = '<span class="ok">OK</span>';
+      clearStoreForm();
+
     }catch(e){
-      qs("loginStatus").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+      setPill(navigator.onLine ? "server: error" : "server: offline", "bad");
+      qs("loginStatus").innerHTML = '<span class="bad">'+(e.message||e)+'</span>';
+    }finally{
+      qs("btnLogin").disabled = false;
     }
   }
 
   function logout(){
-    localStorage.removeItem("MYS_SES");
+    localStorage.removeItem(SES_KEY);
     window.session = null;
     setLoggedIn(false);
-  }
-
-  function copyText(t){
-    navigator.clipboard.writeText(t).catch(()=>{});
+    setPill("server: …", "");
+    clearLoginForm();
   }
 
   async function addStore(){
-    const api = "https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
-    saveCfg();
-    qs("storeStatus").textContent = "Δημιουργώ…";
+    const api = getApi();
+    saveCfg({ api: (qs("api").value||"").trim() });
+
+    qs("storeStatus").innerHTML = '<span class="warn">Δημιουργώ…</span>';
     qs("resultCard").style.display = "none";
+    qs("btnAddStore").disabled = true;
+
     try{
       if(!window.session) throw new Error("Δεν είσαι συνδεδεμένος.");
+
+      const store_name = qs("store_name").value.trim();
+      const store_email = qs("store_email").value.trim();
+
+      if(!store_name) throw new Error("Λείπει όνομα καταστήματος.");
+      if(!store_email || !validateEmail(store_email)) throw new Error("Λάθος email καταστήματος.");
+
       const payload = {
         action: "seller_add_store",
         email: window.session.email,
         pin: window.session.pin,
-        store_name: qs("store_name").value.trim(),
-        store_email: qs("store_email").value.trim(),
+        store_name,
+        store_email,
         is_test: qs("is_test").value
       };
+
       const res = await jsonp(api, payload);
-      if(!res.ok) throw new Error(res.error || "failed");
+      if(!res || !res.ok) throw new Error(res?.error || "failed");
+
       qs("scan_url").href = res.scan_url;
       qs("scan_url").textContent = res.scan_url;
+
       qs("sheet_url").href = res.store_sheet_url;
       qs("sheet_url").textContent = res.store_sheet_url;
 
       const invite =
-`myscanner – ${payload.store_name}
+`myscanner – ${store_name}
 Scan link:
 ${res.scan_url}
 
@@ -192,21 +358,66 @@ ${res.store_sheet_url}`;
 
       qs("storeOut").textContent = JSON.stringify(res, null, 2);
       qs("resultCard").style.display = "block";
+
+      setPill("server: online", "ok");
       qs("storeStatus").innerHTML = '<span class="ok">OK</span>';
+
     }catch(e){
-      qs("storeStatus").innerHTML = '<span class="err">'+(e.message||e)+'</span>';
+      setPill(navigator.onLine ? "server: error" : "server: offline", "bad");
+      qs("storeStatus").innerHTML = '<span class="bad">'+(e.message||e)+'</span>';
+    }finally{
+      qs("btnAddStore").disabled = false;
     }
   }
 
+  // wiring
   qs("btnLogin").addEventListener("click", doLogin);
+  qs("btnLoginClear").addEventListener("click", clearLoginForm);
   qs("btnLogout").addEventListener("click", logout);
-  qs("btnAddStore").addEventListener("click", addStore);
 
-  if(window.session && window.session.email){
-    qs("me").textContent = window.session.email;
-    qs("rolePill").textContent = window.session.role || "SELLER";
-    setLoggedIn(true);
-  }
+  qs("btnAddStore").addEventListener("click", addStore);
+  qs("btnStoreClear").addEventListener("click", clearStoreForm);
+
+  qs("btnSaveCfg").addEventListener("click", ()=>{
+    const v = (qs("api").value||"").trim();
+    if (v){
+      try{ new URL(v); }catch(e){
+        qs("loginStatus").innerHTML = '<span class="bad">Το endpoint δεν είναι έγκυρο URL.</span>';
+        return;
+      }
+    }
+    saveCfg({ api: v });
+    qs("loginStatus").innerHTML = '<span class="ok">OK • Αποθηκεύτηκε</span>';
+  });
+
+  // Enter-to-submit
+  ["email","pin"].forEach(id=>{
+    qs(id).addEventListener("keydown",(e)=>{ if(e.key==="Enter") qs("btnLogin").click(); });
+  });
+  ["store_name","store_email"].forEach(id=>{
+    qs(id).addEventListener("keydown",(e)=>{ if(e.key==="Enter") qs("btnAddStore").click(); });
+  });
+
+  // init
+  (function init(){
+    qs("apiAuto").textContent = apiAutoDefault();
+    const cfg = loadCfg();
+    if (cfg.api) qs("api").value = cfg.api;
+
+    const ses = loadSession();
+    if (ses && ses.email){
+      window.session = ses;
+      qs("me").textContent = ses.email;
+      qs("rolePill").textContent = ses.role || "SELLER";
+      setLoggedIn(true);
+      clearStoreForm();
+    }else{
+      setLoggedIn(false);
+      qs("email").focus();
+    }
+
+    setPill("server: …", "");
+  })();
 </script>
 </body>
 </html>
