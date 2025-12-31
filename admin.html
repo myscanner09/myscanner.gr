@@ -68,21 +68,10 @@
 
   <div class="card">
     <div class="msg">
-      Στόχος: να ΜΗ φαίνεται το Apps Script URL στο UI. Άρα δουλεύουμε με ένα endpoint τύπου
-      <span class="mono">/api</span> (π.χ. Cloudflare Worker/Proxy).
+      Αυτό το Admin μιλάει απευθείας με το Apps Script (JSONP). Αν δεις <span class="mono">unknown_action</span>,
+      τότε το Web App που δείχνεις δεν έχει το action που ζητάς.
     </div>
-
-    <label>Server endpoint (δικό σου proxy – όχι Apps Script)</label>
-    <div class="row">
-      <div>
-        <input id="api" placeholder="π.χ. https://myscanner.gr/api" />
-        <div class="msg">Αν το αφήσεις κενό, θα χρησιμοποιήσει αυτόματα: <span class="mono" id="apiAuto">…</span></div>
-      </div>
-      <div>
-        <button id="btnSaveCfg" type="button" class="primary" style="width:100%">Αποθήκευση ρύθμισης</button>
-        <div class="msg">Αποθηκεύεται τοπικά στον browser.</div>
-      </div>
-    </div>
+    <div class="mono" id="apiLine"></div>
   </div>
 
   <div class="card">
@@ -127,7 +116,8 @@
 </div>
 
 <script>
-  const CFG_KEY = "myscanner_admin_cfg_v1";
+  // ✅ Το Apps Script URL που ζήτησες
+  const API = "https://script.google.com/macros/s/AKfycbwaZmPMd2j0_ZUTC7VfhcPJvJLKioE_FotJg-_vl-_LIRelI9fBCeJqVz0-6Re9Y-fXdA/exec";
 
   function qs(id){ return document.getElementById(id); }
 
@@ -138,32 +128,12 @@
     p.textContent = text;
   }
 
-  function apiAutoDefault(){
-    // default: same-origin /api (ιδανικό όταν έχεις proxy)
-    return location.origin.replace(/\/$/, "") + "/api";
-  }
-
-  function loadCfg(){
-    try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; }
-  }
-  function saveCfg(obj){
-    localStorage.setItem(CFG_KEY, JSON.stringify(obj||{}));
-  }
-
-  function getApi(){
-    const cfg = loadCfg();
-    const manual = (qs("api").value||"").trim();
-    const saved = (cfg.api||"").trim();
-    // προτεραιότητα: manual input -> saved cfg -> auto default
-    return manual || saved || apiAutoDefault();
-  }
-
   function validateEmail(s){
     s = String(s||"").trim();
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
   }
 
-  // JSONP helper (Apps Script-style). Works for proxy too, as long as it returns callback(...)
+  // JSONP helper (Apps Script friendly)
   function jsonp(api, params){
     return new Promise((resolve, reject)=>{
       const cb = "cb_" + Math.random().toString(36).slice(2);
@@ -179,15 +149,8 @@
         if (s.parentNode) s.parentNode.removeChild(s);
       }
 
-      window[cb] = (data)=>{
-        cleanup();
-        resolve(data);
-      };
-
-      s.onerror = ()=>{
-        cleanup();
-        reject(new Error("JSONP request failed"));
-      };
+      window[cb] = (data)=>{ cleanup(); resolve(data); };
+      s.onerror = ()=>{ cleanup(); reject(new Error("JSONP request failed")); };
 
       s.src = u.toString();
       document.body.appendChild(s);
@@ -205,53 +168,28 @@
     qs("name").focus();
   }
 
-  async function pingServer(){
-    // Δεν έχουμε dedicated ping action. Θα δείξουμε status όταν κάνουμε request.
-    setPill("server: …", "");
-  }
-
-  // UI init
+  // init
   (function init(){
-    qs("apiAuto").textContent = apiAutoDefault();
-    const cfg = loadCfg();
-    if (cfg.api) qs("api").value = cfg.api;
+    qs("apiLine").textContent = API;
+    setPill("server: …", "");
+    qs("name").focus();
 
-    // μικρό quality-of-life: ENTER στο pin -> add seller
     ["admin_pin","pin","email","name"].forEach(id=>{
       qs(id).addEventListener("keydown", (e)=>{
         if(e.key === "Enter") qs("btnSave").click();
       });
     });
-
-    pingServer();
-    qs("name").focus();
   })();
-
-  qs("btnSaveCfg").addEventListener("click", ()=>{
-    const v = (qs("api").value||"").trim();
-    // επιτρέπουμε κενό (θα πάει auto default), αλλά αν βάλει κάτι, πρέπει να είναι URL
-    if (v){
-      try{ new URL(v); }catch(e){
-        qs("status").innerHTML = '<span class="bad">Το endpoint δεν είναι έγκυρο URL.</span>';
-        return;
-      }
-    }
-    saveCfg({ api: v });
-    qs("status").innerHTML = '<span class="ok">OK • Αποθηκεύτηκε</span>';
-  });
 
   qs("btnClear").addEventListener("click", resetForm);
 
   qs("btnSave").addEventListener("click", async ()=>{
-    const api = getApi();
-
     qs("status").innerHTML = '<span class="warn">Στέλνω…</span>';
     qs("out").style.display = "none";
     qs("out").textContent = "";
     qs("btnSave").disabled = true;
 
     try{
-      // basic validation
       const admin_pin = qs("admin_pin").value.trim();
       const name = qs("name").value.trim();
       const email = qs("email").value.trim();
@@ -263,19 +201,9 @@
       if(!email || !validateEmail(email)) throw new Error("Λάθος email.");
       if(!pin || pin.length < 4) throw new Error("PIN πωλητή: βάλε τουλάχιστον 4 χαρακτήρες.");
 
-      // save endpoint locally (αν ο χρήστης το έγραψε)
-      saveCfg({ api: (qs("api").value||"").trim() });
+      const payload = { action:"admin_add_seller", admin_pin, name, email, pin, role };
 
-      const payload = {
-        action: "admin_add_seller",
-        admin_pin,
-        name,
-        email,
-        pin,
-        role
-      };
-
-      const res = await jsonp(api, payload);
+      const res = await jsonp(API, payload);
 
       qs("out").style.display = "block";
       qs("out").textContent = JSON.stringify(res, null, 2);
@@ -295,7 +223,7 @@
       }
 
     }catch(e){
-      setPill(navigator.onLine ? "server: error" : "server: offline", navigator.onLine ? "bad" : "bad");
+      setPill(navigator.onLine ? "server: error" : "server: offline", "bad");
       qs("status").innerHTML = '<span class="bad">'+(e.message||e)+'</span>';
     }finally{
       qs("btnSave").disabled = false;
