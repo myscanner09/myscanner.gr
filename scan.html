@@ -165,8 +165,11 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
 </nav>
 
 <script>
-// ✅ ΜΗΝ χρησιμοποιείς το Apps Script URL εδώ.
-// Βάλε το Cloudflare proxy σου:
+/*
+  Αν θες να "μη φαίνεται" το Apps Script URL, εδώ πρέπει να μπει το δικό σου endpoint, π.χ.
+  const API="https://myscanner.gr/api";
+  (Cloudflare Worker/Pages Function που κάνει proxy στο script.google.com)
+*/
 const API="https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
 
 const qs=(id)=>document.getElementById(id);
@@ -241,7 +244,6 @@ async function lookup(){
       return;
     }
 
-    // ✅ Πιο ανθεκτικό: πιάνει not_found είτε ως error είτε ως message
     const err = String(res.error||res.message||"").toLowerCase();
     if(err.includes("not_found") || err.includes("notfound") || err.includes("no_product")){
       isNewProduct=true;
@@ -310,6 +312,7 @@ function renderRecent(){
   });
 }
 
+// ===== Background Save Queue =====
 const PENDING_KEY = "myscanner_pending_"+store_id;
 
 function pushPending_(payload){
@@ -341,7 +344,6 @@ async function flushPending_(){
     try{
       const res = await jsonp(API, item);
       if(!res || !res.ok){
-        // αν κάτι πήγε στραβά, το ξαναβάζουμε και σταματάμε
         pushPending_(item);
         break;
       }
@@ -364,7 +366,6 @@ async function save(){
     return;
   }
 
-  // Φτιάχνουμε payload ΜΙΑ φορά
   const payload = {
     action:"store_scan",
     store_id,token,
@@ -378,7 +379,7 @@ async function save(){
     add_to_catalog: isNewProduct ? "1" : "0"
   };
 
-  // ✅ UX: καθάρισμα ΤΩΡΑ και συνέχισε
+  // UX: καθάρισμα τώρα
   const savedName = payload.product_name;
   setMsg("formStatus", `<span class="small">Στάλθηκε… (queue: ${pendingCount_()})</span>`);
   addRecent({barcode,product_name:savedName,price,vat:payload.vat,at:Date.now(),status:"pending"});
@@ -388,77 +389,31 @@ async function save(){
   lastDetected="";
   isNewProduct=false;
 
-  // ✅ Αν offline → το κρατάμε σε ουρά
   if(!navigator.onLine){
     pushPending_(payload);
     setMsg("formStatus", `<span class="bad">Offline: αποθηκεύτηκε τοπικά (queue: ${pendingCount_()})</span>`);
     return;
   }
 
-  // ✅ Background request (δεν περιμένουμε)
+  // Background request
   jsonp(API, payload).then(res=>{
     if(res && res.ok){
       setMsg("formStatus", `<span class="ok">Αποθηκεύτηκε ✔</span>`);
       if(navigator.vibrate) navigator.vibrate([40,30,40]);
       beep();
     }else{
-      // server είπε όχι -> ουρά
       pushPending_(payload);
-      setMsg("formStatus", `<span class="bad">Δεν σώθηκε στον server (μπήκε σε queue: ${pendingCount_()})</span>`);
+      setMsg("formStatus", `<span class="bad">Δεν σώθηκε στον server (queue: ${pendingCount_()})</span>`);
     }
   }).catch(_=>{
-    // αποτυχία δικτύου -> ουρά
     pushPending_(payload);
     setMsg("formStatus", `<span class="bad">Δίκτυο: μπήκε σε queue (${pendingCount_()})</span>`);
   });
 }
 
-// όταν επανέρχεται internet, κάνε sync
 window.addEventListener("online", flushPending_);
 
-
-  setMsg("formStatus",'<span class="small">Saving…</span>');
-  try{
-    const res=await jsonp(API,{
-      action:"store_scan",
-      store_id,token,
-      barcode,
-      internal_code:qs("internal_code").value.trim(),
-      product_name:qs("product_name").value.trim(),
-      category:qs("category").value.trim(),
-      unit:qs("unit").value.trim(),
-      price,
-      vat:qs("vat").value,
-
-      // ✅ ΤΟ ΚΡΙΣΙΜΟ: αν δεν βρέθηκε στο lookup, ζήτα να προστεθεί στον κατάλογο
-      add_to_catalog: isNewProduct ? "1" : "0"
-    });
-
-    if(res.ok){
-      setMsg("formStatus", isNewProduct
-        ? '<span class="ok">Αποθηκεύτηκε ✔ (μπήκε και στον κατάλογο)</span>'
-        : '<span class="ok">Αποθηκεύτηκε ✔</span>'
-      );
-
-      isNewProduct=false;
-
-      if(navigator.vibrate) navigator.vibrate([40,30,40]);
-      beep();
-
-      addRecent({barcode,product_name:qs("product_name").value.trim(),price,vat:qs("vat").value,at:Date.now()});
-
-      qs("price").value="";
-      qs("barcode").value="";
-      qs("barcode").focus();
-      lastDetected="";
-    }else{
-      setMsg("formStatus",`<span class="bad">Σφάλμα: ${res.error||"save_failed"}</span>`);
-    }
-  }catch(e){
-    setMsg("formStatus",'<span class="bad">Server error</span>');
-  }
-}
-
+// ===== Search =====
 let searchTimer=null;
 async function doSearch(force=false){
   const q=qs("q").value.trim();
@@ -487,7 +442,7 @@ async function doSearch(force=false){
   }
 }
 
-// Camera + auto-fill barcode
+// ===== Camera =====
 let stream=null, scanning=false, detector=null;
 let lastDetected="", lastAt=0;
 
@@ -614,6 +569,7 @@ document.querySelectorAll("button[data-add]").forEach(btn=>{
 setPill(qs("pillOnline"),"server: …","");
 storeInfo();
 renderRecent();
+if(navigator.onLine) flushPending_();
 </script>
 </body>
 </html>
