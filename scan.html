@@ -310,19 +310,112 @@ function renderRecent(){
   });
 }
 
+const PENDING_KEY = "myscanner_pending_"+store_id;
+
+function pushPending_(payload){
+  try{
+    const cur = JSON.parse(localStorage.getItem(PENDING_KEY)||"[]");
+    cur.push(payload);
+    localStorage.setItem(PENDING_KEY, JSON.stringify(cur));
+  }catch(e){}
+}
+
+function popPending_(){
+  try{
+    const cur = JSON.parse(localStorage.getItem(PENDING_KEY)||"[]");
+    const item = cur.shift();
+    localStorage.setItem(PENDING_KEY, JSON.stringify(cur));
+    return item;
+  }catch(e){ return null; }
+}
+
+function pendingCount_(){
+  try{ return (JSON.parse(localStorage.getItem(PENDING_KEY)||"[]")).length; }
+  catch(e){ return 0; }
+}
+
+async function flushPending_(){
+  if(!navigator.onLine) return;
+  let item;
+  while((item = popPending_())){
+    try{
+      const res = await jsonp(API, item);
+      if(!res || !res.ok){
+        // αν κάτι πήγε στραβά, το ξαναβάζουμε και σταματάμε
+        pushPending_(item);
+        break;
+      }
+    }catch(e){
+      pushPending_(item);
+      break;
+    }
+  }
+}
+
 async function save(){
   const barcode=qs("barcode").value.trim();
   const price=qs("price").value.trim();
 
   if(!barcode){ setMsg("formStatus",'<span class="bad">Λείπει barcode.</span>'); return; }
   if(!price || Number(price)<=0){ setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>'); return; }
-
-  // Αν είναι νέο προϊόν, απαίτησε όνομα (λογικό)
   if(isNewProduct && !qs("product_name").value.trim()){
     setMsg("formStatus",'<span class="bad">Βάλε περιγραφή προϊόντος (είναι νέο στον κατάλογο).</span>');
     qs("product_name").focus();
     return;
   }
+
+  // Φτιάχνουμε payload ΜΙΑ φορά
+  const payload = {
+    action:"store_scan",
+    store_id,token,
+    barcode,
+    internal_code:qs("internal_code").value.trim(),
+    product_name:qs("product_name").value.trim(),
+    category:qs("category").value.trim(),
+    unit:qs("unit").value.trim(),
+    price,
+    vat:qs("vat").value,
+    add_to_catalog: isNewProduct ? "1" : "0"
+  };
+
+  // ✅ UX: καθάρισμα ΤΩΡΑ και συνέχισε
+  const savedName = payload.product_name;
+  setMsg("formStatus", `<span class="small">Στάλθηκε… (queue: ${pendingCount_()})</span>`);
+  addRecent({barcode,product_name:savedName,price,vat:payload.vat,at:Date.now(),status:"pending"});
+  qs("price").value="";
+  qs("barcode").value="";
+  qs("barcode").focus();
+  lastDetected="";
+  isNewProduct=false;
+
+  // ✅ Αν offline → το κρατάμε σε ουρά
+  if(!navigator.onLine){
+    pushPending_(payload);
+    setMsg("formStatus", `<span class="bad">Offline: αποθηκεύτηκε τοπικά (queue: ${pendingCount_()})</span>`);
+    return;
+  }
+
+  // ✅ Background request (δεν περιμένουμε)
+  jsonp(API, payload).then(res=>{
+    if(res && res.ok){
+      setMsg("formStatus", `<span class="ok">Αποθηκεύτηκε ✔</span>`);
+      if(navigator.vibrate) navigator.vibrate([40,30,40]);
+      beep();
+    }else{
+      // server είπε όχι -> ουρά
+      pushPending_(payload);
+      setMsg("formStatus", `<span class="bad">Δεν σώθηκε στον server (μπήκε σε queue: ${pendingCount_()})</span>`);
+    }
+  }).catch(_=>{
+    // αποτυχία δικτύου -> ουρά
+    pushPending_(payload);
+    setMsg("formStatus", `<span class="bad">Δίκτυο: μπήκε σε queue (${pendingCount_()})</span>`);
+  });
+}
+
+// όταν επανέρχεται internet, κάνε sync
+window.addEventListener("online", flushPending_);
+
 
   setMsg("formStatus",'<span class="small">Saving…</span>');
   try{
