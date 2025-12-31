@@ -165,7 +165,10 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
 </nav>
 
 <script>
+// ✅ ΜΗΝ χρησιμοποιείς το Apps Script URL εδώ.
+// Βάλε το Cloudflare proxy σου:
 const API="https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
+
 const qs=(id)=>document.getElementById(id);
 
 const u=new URL(location.href);
@@ -219,17 +222,49 @@ async function storeInfo(){
 }
 
 let lookupTimer=null;
+let isNewProduct=false;
+
 function scheduleLookup(){ clearTimeout(lookupTimer); lookupTimer=setTimeout(()=>lookup(),220); }
 
 async function lookup(){
   const barcode=qs("barcode").value.trim();
   if(!barcode) return;
+
   setMsg("formStatus",'<span class="small">Lookup…</span>');
   try{
     const res=await jsonp(API,{action:"store_lookup",store_id,token,barcode});
-    if(res.ok){ fillFromProduct(res.product||{barcode}); setMsg("formStatus",'<span class="ok">OK</span>'); }
-    else setMsg("formStatus",`<span class="bad">Σφάλμα: ${res.error||"lookup_failed"}</span>`);
-  }catch(e){ setMsg("formStatus",'<span class="bad">Server error</span>'); }
+
+    if(res.ok){
+      isNewProduct=false;
+      fillFromProduct(res.product||{barcode});
+      setMsg("formStatus",'<span class="ok">Βρέθηκε στον κατάλογο ✔</span>');
+      return;
+    }
+
+    // ✅ Πιο ανθεκτικό: πιάνει not_found είτε ως error είτε ως message
+    const err = String(res.error||res.message||"").toLowerCase();
+    if(err.includes("not_found") || err.includes("notfound") || err.includes("no_product")){
+      isNewProduct=true;
+
+      qs("internal_code").value="";
+      qs("product_name").value="";
+      qs("category").value="";
+      qs("unit").value="";
+      qs("master_price").value="";
+
+      setMsg("formStatus",
+        '<span class="bad">Δεν υπάρχει στον κατάλογο → συμπλήρωσε στοιχεία και πάτα Save (θα προστεθεί).</span>'
+      );
+      qs("product_name").focus();
+      return;
+    }
+
+    isNewProduct=false;
+    setMsg("formStatus",`<span class="bad">Σφάλμα: ${res.error||"lookup_failed"}</span>`);
+
+  }catch(e){
+    setMsg("formStatus",'<span class="bad">Server error</span>');
+  }
 }
 
 function beep(){
@@ -278,8 +313,16 @@ function renderRecent(){
 async function save(){
   const barcode=qs("barcode").value.trim();
   const price=qs("price").value.trim();
+
   if(!barcode){ setMsg("formStatus",'<span class="bad">Λείπει barcode.</span>'); return; }
   if(!price || Number(price)<=0){ setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>'); return; }
+
+  // Αν είναι νέο προϊόν, απαίτησε όνομα (λογικό)
+  if(isNewProduct && !qs("product_name").value.trim()){
+    setMsg("formStatus",'<span class="bad">Βάλε περιγραφή προϊόντος (είναι νέο στον κατάλογο).</span>');
+    qs("product_name").focus();
+    return;
+  }
 
   setMsg("formStatus",'<span class="small">Saving…</span>');
   try{
@@ -292,17 +335,35 @@ async function save(){
       category:qs("category").value.trim(),
       unit:qs("unit").value.trim(),
       price,
-      vat:qs("vat").value
+      vat:qs("vat").value,
+
+      // ✅ ΤΟ ΚΡΙΣΙΜΟ: αν δεν βρέθηκε στο lookup, ζήτα να προστεθεί στον κατάλογο
+      add_to_catalog: isNewProduct ? "1" : "0"
     });
+
     if(res.ok){
-      setMsg("formStatus",'<span class="ok">Αποθηκεύτηκε ✔</span>');
+      setMsg("formStatus", isNewProduct
+        ? '<span class="ok">Αποθηκεύτηκε ✔ (μπήκε και στον κατάλογο)</span>'
+        : '<span class="ok">Αποθηκεύτηκε ✔</span>'
+      );
+
+      isNewProduct=false;
+
       if(navigator.vibrate) navigator.vibrate([40,30,40]);
       beep();
+
       addRecent({barcode,product_name:qs("product_name").value.trim(),price,vat:qs("vat").value,at:Date.now()});
-      qs("price").value=""; qs("barcode").value=""; qs("barcode").focus();
+
+      qs("price").value="";
+      qs("barcode").value="";
+      qs("barcode").focus();
       lastDetected="";
-    }else setMsg("formStatus",`<span class="bad">Σφάλμα: ${res.error||"save_failed"}</span>`);
-  }catch(e){ setMsg("formStatus",'<span class="bad">Server error</span>'); }
+    }else{
+      setMsg("formStatus",`<span class="bad">Σφάλμα: ${res.error||"save_failed"}</span>`);
+    }
+  }catch(e){
+    setMsg("formStatus",'<span class="bad">Server error</span>');
+  }
 }
 
 let searchTimer=null;
@@ -328,7 +389,9 @@ async function doSearch(force=false){
         lookup();
       });
     });
-  }catch(e){ qs("results").innerHTML='<div class="bad">Server error</div>'; }
+  }catch(e){
+    qs("results").innerHTML='<div class="bad">Server error</div>';
+  }
 }
 
 // Camera + auto-fill barcode
@@ -351,14 +414,19 @@ async function startCam(){
     setPill(qs("pillCam"),"camera: no-detector","bad");
     return;
   }
+
   detector=new BarcodeDetector({formats:["ean_13","ean_8","code_128","upc_a","upc_e"]});
+
   try{
     stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
     const v=qs("video");
     v.srcObject=stream;
     await v.play();
     scanning=true;
-    qs("btnStart").disabled=true; qs("btnStop").disabled=false;
+
+    qs("btnStart").disabled=true;
+    qs("btnStop").disabled=false;
+
     setPill(qs("pillCam"),"camera: on","ok");
     qs("camStatus").innerHTML='<span class="ok">Κάμερα ενεργή. Σκάναρε barcode.</span>';
     tick();
@@ -378,8 +446,8 @@ async function tick(){
       const t=Date.now();
       if(code && (code!==lastDetected || (t-lastAt)>2200)){
         lastDetected=code; lastAt=t;
-        qs("barcode").value=code;        // ✅ αυτό που ζήτησες
-        scheduleLookup();                // auto lookup
+        qs("barcode").value=code;
+        scheduleLookup();
         if(navigator.vibrate) navigator.vibrate(20);
       }
     }
@@ -389,9 +457,11 @@ async function tick(){
 
 function stopCam(){
   scanning=false;
-  qs("btnStart").disabled=false; qs("btnStop").disabled=true;
+  qs("btnStart").disabled=false;
+  qs("btnStop").disabled=true;
   try{ if(stream) stream.getTracks().forEach(t=>t.stop()); }catch(e){}
-  stream=null; qs("video").srcObject=null;
+  stream=null;
+  qs("video").srcObject=null;
   setPill(qs("pillCam"),"camera: off","");
   qs("camStatus").textContent="";
 }
@@ -407,11 +477,19 @@ function activateTab(tab){
 
 // wiring
 qs("btnLookup").addEventListener("click",lookup);
-qs("barcode").addEventListener("input",()=>{ const b=qs("barcode").value.trim(); if(b.length>=8) scheduleLookup(); });
+qs("barcode").addEventListener("input",()=>{
+  const b=qs("barcode").value.trim();
+  if(b.length>=8) scheduleLookup();
+});
+
 qs("btnClear").addEventListener("click",()=>{
   ["barcode","internal_code","product_name","category","unit","master_price","price"].forEach(id=>qs(id).value="");
-  setMsg("formStatus",""); lastDetected=""; qs("barcode").focus();
+  setMsg("formStatus","");
+  lastDetected="";
+  isNewProduct=false;
+  qs("barcode").focus();
 });
+
 qs("btnSave").addEventListener("click",save);
 qs("btnStart").addEventListener("click",startCam);
 qs("btnStop").addEventListener("click",stopCam);
@@ -428,6 +506,7 @@ qs("btnMaster").addEventListener("click",()=>{
   if(mp) qs("price").value=mp;
   qs("price").focus();
 });
+
 document.querySelectorAll("button[data-add]").forEach(btn=>{
   btn.addEventListener("click",()=>{
     const add=Number(btn.getAttribute("data-add")||0);
