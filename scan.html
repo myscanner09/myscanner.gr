@@ -479,6 +479,9 @@ async function doSearch(force=false){
   if(!force){ clearTimeout(searchTimer); searchTimer=setTimeout(()=>doSearch(true),280); return; }
   qs("results").innerHTML='<div class="small">Searching…</div>';
 
+  console.log("SEARCH typesParam =", selectedTypes.join(","));
+
+
   try{
     // ✅ ΣΤΕΛΝΟΥΜΕ types ΣΤΟΝ SERVER
     const typesParam = selectedTypes.join(",");
@@ -490,7 +493,10 @@ async function doSearch(force=false){
     qs("results").innerHTML=items.map(it=>`
       <div class="item">
         <b>${it.product_name||"(χωρίς όνομα)"}</b>
-        <div class="small">barcode: ${it.barcode||""} • internal: ${it.internal_code||""} • ${it.category||""} • ${it.unit||""} • τιμή: ${(it.price??"")}</div>
+       <div class="small">
+  barcode: ${it.barcode||""} • internal: ${it.internal_code||""} • ${it.category||""} • ${it.unit||""} • τιμή: ${(it.price??"")} • type: ${it.store_type||""}
+</div>
+
         <div class="btnrow">
           <button class="grow" type="button"
             data-b="${it.barcode||""}"
