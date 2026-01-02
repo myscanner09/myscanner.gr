@@ -230,8 +230,11 @@ let isNewProduct=false;
 function scheduleLookup(){ clearTimeout(lookupTimer); lookupTimer=setTimeout(()=>lookup(),220); }
 
 async function lookup(){
-  const barcode=qs("barcode").value.trim();
-  if(!barcode) return;
+  const barcode = qs("barcode").value.trim();
+  if(!barcode || barcode === "0") return; // ΜΗΝ κάνεις lookup για "0"
+  ...
+}
+
 
   setMsg("formStatus",'<span class="small">Lookup…</span>');
   try{
@@ -364,52 +367,50 @@ async function save(){
   // αν δεν υπάρχει barcode, βάλε 0
   if(!barcode) barcode = "0";
 
-  // να μην σε κόβει όταν δεν έχει barcode
+  // αν είναι χωρίς barcode, θέλω τουλάχιστον όνομα ή internal
   if (barcode === "0" && !internalCode && !productName) {
     alert("Βάλε τουλάχιστον Περιγραφή ή Internal code.");
     return;
   }
 
-  if(!price || Number(price)<=0){ setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>'); return; }
-  ...
-
-
-  if(!price || Number(price)<=0){
+  if(!price || Number(price) <= 0){
     setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>');
     return;
   }
 
-  if(isNewProduct && !product_name){
+  // αν είναι νέο (με πραγματικό barcode) θέλω περιγραφή
+  if(isNewProduct && barcode !== "0" && !productName){
     setMsg("formStatus",'<span class="bad">Βάλε περιγραφή προϊόντος (είναι νέο στον κατάλογο).</span>');
     qs("product_name").focus();
     return;
   }
 
   const payload = {
-    action:"store_scan",
-    store_id, token,
-    barcode: barcode || "",
-    internal_code,
-    product_name,
+    action: "store_scan",
+    store_id,
+    token,
+    barcode,                        // "0" αν λείπει
+    internal_code: internalCode,
+    product_name: productName,
     category: qs("category").value.trim(),
     unit: qs("unit").value.trim(),
     price,
     vat: qs("vat").value,
-    add_to_catalog: (isNewProduct || (!barcode)) ? "1" : "0" // αν δεν έχει barcode, το θεωρούμε “νέο”
+
+    // ΜΟΝΟ όταν είναι νέο ΚΑΙ έχει πραγματικό barcode
+    add_to_catalog: (isNewProduct && barcode !== "0") ? "1" : "0"
   };
-
-  // ... κράτα ΟΛΟ το υπόλοιπο όπως το έχεις (UX/queue/jsonp)
-
 
   // UX: καθάρισμα τώρα
   const savedName = payload.product_name;
   setMsg("formStatus", `<span class="small">Στάλθηκε… (queue: ${pendingCount_()})</span>`);
-  addRecent({barcode,product_name:savedName,price,vat:payload.vat,at:Date.now(),status:"pending"});
-  qs("price").value="";
-  qs("barcode").value="";
+  addRecent({barcode, product_name: savedName, price, vat: payload.vat, at: Date.now(), status: "pending"});
+
+  qs("price").value = "";
+  qs("barcode").value = "";
   qs("barcode").focus();
-  lastDetected="";
-  isNewProduct=false;
+  lastDetected = "";
+  isNewProduct = false;
 
   if(!navigator.onLine){
     pushPending_(payload);
@@ -432,6 +433,7 @@ async function save(){
     setMsg("formStatus", `<span class="bad">Δίκτυο: μπήκε σε queue (${pendingCount_()})</span>`);
   });
 }
+
 
 window.addEventListener("online", flushPending_);
 
