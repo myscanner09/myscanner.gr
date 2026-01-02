@@ -355,12 +355,23 @@ async function flushPending_(){
 }
 
 async function save(){
-  const barcode=qs("barcode").value.trim();
-  const price=qs("price").value.trim();
+  const barcode = qs("barcode").value.trim();
+  const internal_code = qs("internal_code").value.trim();
+  const product_name  = qs("product_name").value.trim();
+  const price = qs("price").value.trim();
 
- if (!barcode && !internal_code && !product_name) {alert("Βάλε τουλάχιστον Όνομα ή Κωδικό (χωρίς barcode δεν γίνεται αλλιώς).");return; }
-  if(!price || Number(price)<=0){ setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>'); return; }
-  if(isNewProduct && !qs("product_name").value.trim()){
+  // Επιτρέπουμε χωρίς barcode, ΑΛΛΑ θέλουμε κάτι να το ξεχωρίζει
+  if (!barcode && !internal_code && !product_name) {
+    alert("Βάλε τουλάχιστον Περιγραφή ή Internal code (χωρίς barcode δεν γίνεται αλλιώς).");
+    return;
+  }
+
+  if(!price || Number(price)<=0){
+    setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>');
+    return;
+  }
+
+  if(isNewProduct && !product_name){
     setMsg("formStatus",'<span class="bad">Βάλε περιγραφή προϊόντος (είναι νέο στον κατάλογο).</span>');
     qs("product_name").focus();
     return;
@@ -368,16 +379,19 @@ async function save(){
 
   const payload = {
     action:"store_scan",
-    store_id,token,
-    barcode,
-    internal_code:qs("internal_code").value.trim(),
-    product_name:qs("product_name").value.trim(),
-    category:qs("category").value.trim(),
-    unit:qs("unit").value.trim(),
+    store_id, token,
+    barcode: barcode || "",
+    internal_code,
+    product_name,
+    category: qs("category").value.trim(),
+    unit: qs("unit").value.trim(),
     price,
-    vat:qs("vat").value,
-    add_to_catalog: isNewProduct ? "1" : "0"
+    vat: qs("vat").value,
+    add_to_catalog: (isNewProduct || (!barcode)) ? "1" : "0" // αν δεν έχει barcode, το θεωρούμε “νέο”
   };
+
+  // ... κράτα ΟΛΟ το υπόλοιπο όπως το έχεις (UX/queue/jsonp)
+
 
   // UX: καθάρισμα τώρα
   const savedName = payload.product_name;
@@ -428,15 +442,43 @@ async function doSearch(force=false){
       <div class="item">
         <b>${it.product_name||"(χωρίς όνομα)"}</b>
         <div class="small">barcode: ${it.barcode||""} • internal: ${it.internal_code||""} • ${it.category||""} • ${it.unit||""} • τιμή: ${(it.price??"")}</div>
-        <div class="btnrow"><button class="grow" type="button" data-b="${it.barcode||""}">Επιλογή</button></div>
+        <div class="btnrow">
+  <button class="grow" type="button"
+    data-b="${it.barcode||""}"
+    data-ic="${it.internal_code||""}"
+    data-name="${(it.product_name||"").replace(/"/g,'&quot;')}"
+    data-cat="${(it.category||"").replace(/"/g,'&quot;')}"
+    data-unit="${it.unit||""}"
+    data-price="${(it.price??"")}"
+  >Επιλογή</button>
+</div>
+
       </div>`).join("");
-    qs("results").querySelectorAll("button[data-b]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        qs("barcode").value=btn.getAttribute("data-b")||"";
-        activateTab("scan");
-        lookup();
-      });
-    });
+   qs("results").querySelectorAll("button").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const b  = btn.getAttribute("data-b") || "";
+    const ic = btn.getAttribute("data-ic") || "";
+    const nm = btn.getAttribute("data-name") || "";
+    const ct = btn.getAttribute("data-cat") || "";
+    const un = btn.getAttribute("data-unit") || "";
+    const pr = btn.getAttribute("data-price") || "";
+
+    qs("barcode").value = b;
+    qs("internal_code").value = ic;
+    qs("product_name").value = nm;
+    qs("category").value = ct;
+    qs("unit").value = un;
+    qs("master_price").value = pr;
+
+    isNewProduct = !b; // αν δεν έχει barcode, το αφήνουμε σαν “νέο/χειροκίνητο”
+    activateTab("scan");
+
+    // αν έχει barcode κάνε lookup, αλλιώς πήγαινε κατευθείαν στην τιμή
+    if (b) lookup();
+    else qs("price").focus();
+  });
+});
+
   }catch(e){
     qs("results").innerHTML='<div class="bad">Server error</div>';
   }
