@@ -143,6 +143,11 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
         <input id="q" class="grow" placeholder="π.χ. coca, 520..., κωδικός">
         <button id="btnSearch" class="primary" type="button">Search</button>
       </div>
+
+      <!-- ✅ ΝΕΟ: φίλτρα κατηγορίας καταστήματος -->
+      <div class="msg">Φίλτρο κατηγορίας καταστήματος (προαιρετικό):</div>
+      <div id="typeChips" class="quick"></div>
+
       <div class="msg">Γράψε και θα εμφανίσει αποτελέσματα.</div>
       <div id="results" class="list"></div>
     </div>
@@ -178,6 +183,44 @@ const u=new URL(location.href);
 const store_id=u.searchParams.get("store_id")||"";
 const token=u.searchParams.get("token")||"";
 const RECENT_KEY="myscanner_recent_"+store_id;
+
+/* ===================== ✅ ΝΕΟ: Store Type Filters ===================== */
+const TYPES = [
+  {id:"MARKET",     label:"ΜΑΡΚΕΤ"},
+  {id:"KREOPOLEIO", label:"ΚΡΕΟΠΩΛΕΙΟ"},
+  {id:"MANAVIKO",   label:"ΜΑΝΑΒΙΚΟ"},
+  {id:"FARMAKEIO",  label:"ΦΑΡΜΑΚΕΙΟ"},
+  {id:"PETSHOP",    label:"PET SHOP"},
+];
+const TYPES_KEY = "myscanner_types_"+store_id;
+let selectedTypes = [];
+
+function loadTypes(){
+  try{ selectedTypes = JSON.parse(localStorage.getItem(TYPES_KEY)||"[]"); }
+  catch(e){ selectedTypes=[]; }
+  if(!Array.isArray(selectedTypes)) selectedTypes=[];
+}
+function saveTypes(){ localStorage.setItem(TYPES_KEY, JSON.stringify(selectedTypes)); }
+
+function renderTypeChips(){
+  const box = qs("typeChips");
+  if(!box) return;
+  box.innerHTML = TYPES.map(t=>{
+    const on = selectedTypes.includes(t.id);
+    return `<button type="button" data-t="${t.id}" class="${on?'primary':''}">${t.label}</button>`;
+  }).join("");
+  box.querySelectorAll("button[data-t]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const id = btn.getAttribute("data-t");
+      if(selectedTypes.includes(id)) selectedTypes = selectedTypes.filter(x=>x!==id);
+      else selectedTypes.push(id);
+      saveTypes();
+      renderTypeChips();
+      doSearch(true); // refresh αποτελέσματα
+    });
+  });
+}
+/* ===================================================================== */
 
 function setPill(el,text,cls){
   el.classList.remove("ok","bad");
@@ -269,7 +312,6 @@ async function lookup(){
     setMsg("formStatus",'<span class="bad">Server error</span>');
   }
 }
-
 
 function beep(){
   try{
@@ -433,7 +475,6 @@ async function save(){
   });
 }
 
-
 window.addEventListener("online", flushPending_);
 
 // ===== Search =====
@@ -444,7 +485,8 @@ async function doSearch(force=false){
   if(!force){ clearTimeout(searchTimer); searchTimer=setTimeout(()=>doSearch(true),280); return; }
   qs("results").innerHTML='<div class="small">Searching…</div>';
   try{
-    const res=await jsonp(API,{action:"store_search",store_id,token,q});
+    // ✅ ΝΕΟ: στέλνει types φίλτρο
+    const res=await jsonp(API,{action:"store_search",store_id,token,q, types: selectedTypes.join(",")});
     const items=res.items||[];
     if(!items.length){ qs("results").innerHTML='<div class="small">Δεν βρέθηκε κάτι.</div>'; return; }
     qs("results").innerHTML=items.map(it=>`
@@ -452,45 +494,44 @@ async function doSearch(force=false){
         <b>${it.product_name||"(χωρίς όνομα)"}</b>
         <div class="small">barcode: ${it.barcode||""} • internal: ${it.internal_code||""} • ${it.category||""} • ${it.unit||""} • τιμή: ${(it.price??"")}</div>
         <div class="btnrow">
-  <button class="grow" type="button"
-    data-b="${it.barcode||""}"
-    data-ic="${it.internal_code||""}"
-    data-name="${(it.product_name||"").replace(/"/g,'&quot;')}"
-    data-cat="${(it.category||"").replace(/"/g,'&quot;')}"
-    data-unit="${it.unit||""}"
-    data-price="${(it.price??"")}"
-  >Επιλογή</button>
-</div>
-
+          <button class="grow" type="button"
+            data-b="${it.barcode||""}"
+            data-ic="${it.internal_code||""}"
+            data-name="${(it.product_name||"").replace(/"/g,'&quot;')}"
+            data-cat="${(it.category||"").replace(/"/g,'&quot;')}"
+            data-unit="${it.unit||""}"
+            data-price="${(it.price??"")}"
+          >Επιλογή</button>
+        </div>
       </div>`).join("");
-   qs("results").querySelectorAll("button").forEach(btn=>{
-  btn.addEventListener("click", ()=>{
-    const b  = btn.getAttribute("data-b") || "";
-    const ic = btn.getAttribute("data-ic") || "";
-    const nm = btn.getAttribute("data-name") || "";
-    const ct = btn.getAttribute("data-cat") || "";
-    const un = btn.getAttribute("data-unit") || "";
-    const pr = btn.getAttribute("data-price") || "";
 
-    qs("barcode").value = b;
-    qs("internal_code").value = ic;
-    qs("product_name").value = nm;
-    qs("category").value = ct;
-    qs("unit").value = un;
-    qs("master_price").value = pr;
+    qs("results").querySelectorAll("button").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const b  = btn.getAttribute("data-b") || "";
+        const ic = btn.getAttribute("data-ic") || "";
+        const nm = btn.getAttribute("data-name") || "";
+        const ct = btn.getAttribute("data-cat") || "";
+        const un = btn.getAttribute("data-unit") || "";
+        const pr = btn.getAttribute("data-price") || "";
 
-    isNewProduct = false;
-if(!b){
-  setMsg("formStatus", '<span class="small">Χωρίς barcode → στο Save θα μπει 0.</span>');
-  qs("price").focus();
-}
-    activateTab("scan");
+        qs("barcode").value = b;
+        qs("internal_code").value = ic;
+        qs("product_name").value = nm;
+        qs("category").value = ct;
+        qs("unit").value = un;
+        qs("master_price").value = pr;
 
-    // αν έχει barcode κάνε lookup, αλλιώς πήγαινε κατευθείαν στην τιμή
-    if (b) lookup();
-    else qs("price").focus();
-  });
-});
+        isNewProduct = false;
+        if(!b){
+          setMsg("formStatus", '<span class="small">Χωρίς barcode → στο Save θα μπει 0.</span>');
+          qs("price").focus();
+        }
+
+        activateTab("scan");
+        if (b) lookup();
+        else qs("price").focus();
+      });
+    });
 
   }catch(e){
     qs("results").innerHTML='<div class="bad">Server error</div>';
@@ -624,6 +665,11 @@ document.querySelectorAll("button[data-add]").forEach(btn=>{
 setPill(qs("pillOnline"),"server: …","");
 storeInfo();
 renderRecent();
+
+// ✅ ΝΕΟ init για φίλτρα
+loadTypes();
+renderTypeChips();
+
 if(navigator.onLine) flushPending_();
 </script>
 </body>
