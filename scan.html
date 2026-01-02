@@ -144,7 +144,6 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
         <button id="btnSearch" class="primary" type="button">Search</button>
       </div>
 
-      <!-- ✅ ΝΕΟ: φίλτρα κατηγορίας καταστήματος -->
       <div class="msg">Φίλτρο κατηγορίας καταστήματος (προαιρετικό):</div>
       <div id="typeChips" class="quick"></div>
 
@@ -170,13 +169,7 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
 </nav>
 
 <script>
-/*
-  Αν θες να "μη φαίνεται" το Apps Script URL, εδώ πρέπει να μπει το δικό σου endpoint, π.χ.
-  const API="https://myscanner.gr/api";
-  (Cloudflare Worker/Pages Function που κάνει proxy στο script.google.com)
-*/
 const API="https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
-
 const qs=(id)=>document.getElementById(id);
 
 const u=new URL(location.href);
@@ -184,7 +177,7 @@ const store_id=u.searchParams.get("store_id")||"";
 const token=u.searchParams.get("token")||"";
 const RECENT_KEY="myscanner_recent_"+store_id;
 
-/* ===================== ✅ ΝΕΟ: Store Type Filters ===================== */
+/* ===================== ✅ Store Type Filters (FULL) ===================== */
 const TYPES = [
   {id:"MARKET",     label:"ΜΑΡΚΕΤ"},
   {id:"KREOPOLEIO", label:"ΚΡΕΟΠΩΛΕΙΟ"},
@@ -199,28 +192,38 @@ function loadTypes(){
   try{ selectedTypes = JSON.parse(localStorage.getItem(TYPES_KEY)||"[]"); }
   catch(e){ selectedTypes=[]; }
   if(!Array.isArray(selectedTypes)) selectedTypes=[];
+  selectedTypes = selectedTypes.map(x=>String(x).toUpperCase());
 }
-function saveTypes(){ localStorage.setItem(TYPES_KEY, JSON.stringify(selectedTypes)); }
+function saveTypes(){ try{ localStorage.setItem(TYPES_KEY, JSON.stringify(selectedTypes)); }catch(e){} }
 
 function renderTypeChips(){
   const box = qs("typeChips");
   if(!box) return;
+
   box.innerHTML = TYPES.map(t=>{
     const on = selectedTypes.includes(t.id);
+    // χρησιμοποιούμε "primary" για selected (όπως ήδη έχεις)
     return `<button type="button" data-t="${t.id}" class="${on?'primary':''}">${t.label}</button>`;
   }).join("");
+
   box.querySelectorAll("button[data-t]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      const id = btn.getAttribute("data-t");
+      const id = String(btn.getAttribute("data-t")||"").toUpperCase();
+      if(!id) return;
+
       if(selectedTypes.includes(id)) selectedTypes = selectedTypes.filter(x=>x!==id);
       else selectedTypes.push(id);
+
       saveTypes();
       renderTypeChips();
-      doSearch(true); // refresh αποτελέσματα
+
+      // refresh αποτελέσματα μόνο αν υπάρχει query >= 2
+      const q = (qs("q").value||"").trim();
+      if(q.length>=2) doSearch(true);
     });
   });
 }
-/* ===================================================================== */
+/* ====================================================================== */
 
 function setPill(el,text,cls){
   el.classList.remove("ok","bad");
@@ -274,8 +277,6 @@ function scheduleLookup(){ clearTimeout(lookupTimer); lookupTimer=setTimeout(()=
 
 async function lookup(){
   const barcode = qs("barcode").value.trim();
-
-  // ΜΗΝ κάνεις lookup για κενό ή "0"
   if(!barcode || barcode === "0") return;
 
   setMsg("formStatus",'<span class="small">Lookup…</span>');
@@ -405,10 +406,8 @@ async function save(){
   const internalCode = qs("internal_code").value.trim();
   const productName  = qs("product_name").value.trim();
 
-  // αν δεν υπάρχει barcode, βάλε 0
   if(!barcode) barcode = "0";
 
-  // αν είναι χωρίς barcode, θέλω τουλάχιστον όνομα ή internal
   if (barcode === "0" && !internalCode && !productName) {
     alert("Βάλε τουλάχιστον Περιγραφή ή Internal code.");
     return;
@@ -419,7 +418,6 @@ async function save(){
     return;
   }
 
-  // αν είναι νέο (με πραγματικό barcode) θέλω περιγραφή
   if(isNewProduct && barcode !== "0" && !productName){
     setMsg("formStatus",'<span class="bad">Βάλε περιγραφή προϊόντος (είναι νέο στον κατάλογο).</span>');
     qs("product_name").focus();
@@ -430,19 +428,16 @@ async function save(){
     action: "store_scan",
     store_id,
     token,
-    barcode,                        // "0" αν λείπει
+    barcode,
     internal_code: internalCode,
     product_name: productName,
     category: qs("category").value.trim(),
     unit: qs("unit").value.trim(),
     price,
     vat: qs("vat").value,
-
-    // ΜΟΝΟ όταν είναι νέο ΚΑΙ έχει πραγματικό barcode
     add_to_catalog: (isNewProduct && barcode !== "0") ? "1" : "0"
   };
 
-  // UX: καθάρισμα τώρα
   const savedName = payload.product_name;
   setMsg("formStatus", `<span class="small">Στάλθηκε… (queue: ${pendingCount_()})</span>`);
   addRecent({barcode, product_name: savedName, price, vat: payload.vat, at: Date.now(), status: "pending"});
@@ -459,7 +454,6 @@ async function save(){
     return;
   }
 
-  // Background request
   jsonp(API, payload).then(res=>{
     if(res && res.ok){
       setMsg("formStatus", `<span class="ok">Αποθηκεύτηκε ✔</span>`);
@@ -484,11 +478,15 @@ async function doSearch(force=false){
   if(q.length<2){ qs("results").innerHTML=""; return; }
   if(!force){ clearTimeout(searchTimer); searchTimer=setTimeout(()=>doSearch(true),280); return; }
   qs("results").innerHTML='<div class="small">Searching…</div>';
+
   try{
-    // ✅ ΝΕΟ: στέλνει types φίλτρο
-    const res=await jsonp(API,{action:"store_search",store_id,token,q, types: selectedTypes.join(",")});
+    // ✅ ΣΤΕΛΝΟΥΜΕ types ΣΤΟΝ SERVER
+    const typesParam = selectedTypes.join(",");
+    const res=await jsonp(API,{action:"store_search",store_id,token,q, types: typesParam});
+
     const items=res.items||[];
     if(!items.length){ qs("results").innerHTML='<div class="small">Δεν βρέθηκε κάτι.</div>'; return; }
+
     qs("results").innerHTML=items.map(it=>`
       <div class="item">
         <b>${it.product_name||"(χωρίς όνομα)"}</b>
@@ -666,7 +664,7 @@ setPill(qs("pillOnline"),"server: …","");
 storeInfo();
 renderRecent();
 
-// ✅ ΝΕΟ init για φίλτρα
+// ✅ init φίλτρων
 loadTypes();
 renderTypeChips();
 
