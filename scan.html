@@ -231,17 +231,16 @@ function scheduleLookup(){ clearTimeout(lookupTimer); lookupTimer=setTimeout(()=
 
 async function lookup(){
   const barcode = qs("barcode").value.trim();
-  if(!barcode || barcode === "0") return; // ΜΗΝ κάνεις lookup για "0"
-  ...
-}
 
+  // ΜΗΝ κάνεις lookup για κενό ή "0"
+  if(!barcode || barcode === "0") return;
 
   setMsg("formStatus",'<span class="small">Lookup…</span>');
   try{
-    const res=await jsonp(API,{action:"store_lookup",store_id,token,barcode});
+    const res = await jsonp(API,{action:"store_lookup",store_id,token,barcode});
 
     if(res.ok){
-      isNewProduct=false;
+      isNewProduct = false;
       fillFromProduct(res.product||{barcode});
       setMsg("formStatus",'<span class="ok">Βρέθηκε στον κατάλογο ✔</span>');
       return;
@@ -249,7 +248,7 @@ async function lookup(){
 
     const err = String(res.error||res.message||"").toLowerCase();
     if(err.includes("not_found") || err.includes("notfound") || err.includes("no_product")){
-      isNewProduct=true;
+      isNewProduct = true;
 
       qs("internal_code").value="";
       qs("product_name").value="";
@@ -264,13 +263,13 @@ async function lookup(){
       return;
     }
 
-    isNewProduct=false;
+    isNewProduct = false;
     setMsg("formStatus",`<span class="bad">Σφάλμα: ${res.error||"lookup_failed"}</span>`);
-
   }catch(e){
     setMsg("formStatus",'<span class="bad">Server error</span>');
   }
 }
+
 
 function beep(){
   try{
@@ -480,7 +479,11 @@ async function doSearch(force=false){
     qs("unit").value = un;
     qs("master_price").value = pr;
 
-    isNewProduct = !b; // αν δεν έχει barcode, το αφήνουμε σαν “νέο/χειροκίνητο”
+    isNewProduct = false;
+if(!b){
+  setMsg("formStatus", '<span class="small">Χωρίς barcode → στο Save θα μπει 0.</span>');
+  qs("price").focus();
+}
     activateTab("scan");
 
     // αν έχει barcode κάνε lookup, αλλιώς πήγαινε κατευθείαν στην τιμή
