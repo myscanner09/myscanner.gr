@@ -358,7 +358,7 @@ async function save(){
   const barcode=qs("barcode").value.trim();
   const price=qs("price").value.trim();
 
-  if(!barcode){ setMsg("formStatus",'<span class="bad">Λείπει barcode.</span>'); return; }
+ if (!barcode && !internal_code && !product_name) {alert("Βάλε τουλάχιστον Όνομα ή Κωδικό (χωρίς barcode δεν γίνεται αλλιώς).");return; }
   if(!price || Number(price)<=0){ setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>'); return; }
   if(isNewProduct && !qs("product_name").value.trim()){
     setMsg("formStatus",'<span class="bad">Βάλε περιγραφή προϊόντος (είναι νέο στον κατάλογο).</span>');
