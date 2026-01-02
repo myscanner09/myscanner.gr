@@ -355,16 +355,24 @@ async function flushPending_(){
 }
 
 async function save(){
-  const barcode = qs("barcode").value.trim();
-  const internal_code = qs("internal_code").value.trim();
-  const product_name  = qs("product_name").value.trim();
+  let barcode = qs("barcode").value.trim();
   const price = qs("price").value.trim();
 
-  // Επιτρέπουμε χωρίς barcode, ΑΛΛΑ θέλουμε κάτι να το ξεχωρίζει
-  if (!barcode && !internal_code && !product_name) {
-    alert("Βάλε τουλάχιστον Περιγραφή ή Internal code (χωρίς barcode δεν γίνεται αλλιώς).");
+  const internalCode = qs("internal_code").value.trim();
+  const productName  = qs("product_name").value.trim();
+
+  // αν δεν υπάρχει barcode, βάλε 0
+  if(!barcode) barcode = "0";
+
+  // να μην σε κόβει όταν δεν έχει barcode
+  if (barcode === "0" && !internalCode && !productName) {
+    alert("Βάλε τουλάχιστον Περιγραφή ή Internal code.");
     return;
   }
+
+  if(!price || Number(price)<=0){ setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>'); return; }
+  ...
+
 
   if(!price || Number(price)<=0){
     setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>');
