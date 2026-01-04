@@ -144,10 +144,9 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
         <button id="btnSearch" class="primary" type="button">Search</button>
       </div>
 
-      <div class="msg">Φίλτρο κατηγορίας καταστήματος (προαιρετικό):</div>
+      <div class="msg">Φίλτρο τύπου καταστήματος (auto από το κατάστημα — αλλά μπορείς να το αλλάξεις):</div>
       <div id="typeChips" class="quick"></div>
 
-      <div class="msg">Γράψε και θα εμφανίσει αποτελέσματα.</div>
       <div id="results" class="list"></div>
     </div>
   </section>
@@ -177,7 +176,7 @@ const store_id=u.searchParams.get("store_id")||"";
 const token=u.searchParams.get("token")||"";
 const RECENT_KEY="myscanner_recent_"+store_id;
 
-/* ===================== ✅ Store Type Filters (FULL) ===================== */
+/* ===================== Store Type Filters ===================== */
 const TYPES = [
   {id:"MARKET",     label:"ΜΑΡΚΕΤ"},
   {id:"KREOPOLEIO", label:"ΚΡΕΟΠΩΛΕΙΟ"},
@@ -188,12 +187,15 @@ const TYPES = [
 const TYPES_KEY = "myscanner_types_"+store_id;
 let selectedTypes = [];
 
+function normType(s){ return String(s||"").toUpperCase().replace(/[^A-Z0-9]+/g,""); }
+
 function loadTypes(){
   try{ selectedTypes = JSON.parse(localStorage.getItem(TYPES_KEY)||"[]"); }
   catch(e){ selectedTypes=[]; }
   if(!Array.isArray(selectedTypes)) selectedTypes=[];
-  selectedTypes = selectedTypes.map(x=>String(x).toUpperCase());
+  selectedTypes = selectedTypes.map(x=>normType(x)).filter(Boolean);
 }
+
 function saveTypes(){ try{ localStorage.setItem(TYPES_KEY, JSON.stringify(selectedTypes)); }catch(e){} }
 
 function renderTypeChips(){
@@ -202,13 +204,12 @@ function renderTypeChips(){
 
   box.innerHTML = TYPES.map(t=>{
     const on = selectedTypes.includes(t.id);
-    // χρησιμοποιούμε "primary" για selected (όπως ήδη έχεις)
     return `<button type="button" data-t="${t.id}" class="${on?'primary':''}">${t.label}</button>`;
   }).join("");
 
   box.querySelectorAll("button[data-t]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
-      const id = String(btn.getAttribute("data-t")||"").toUpperCase();
+      const id = normType(btn.getAttribute("data-t"));
       if(!id) return;
 
       if(selectedTypes.includes(id)) selectedTypes = selectedTypes.filter(x=>x!==id);
@@ -217,13 +218,12 @@ function renderTypeChips(){
       saveTypes();
       renderTypeChips();
 
-      // refresh αποτελέσματα μόνο αν υπάρχει query >= 2
       const q = (qs("q").value||"").trim();
       if(q.length>=2) doSearch(true);
     });
   });
 }
-/* ====================================================================== */
+/* ============================================================= */
 
 function setPill(el,text,cls){
   el.classList.remove("ok","bad");
@@ -257,6 +257,8 @@ function fillFromProduct(p){
   qs("master_price").value=(p.price??"")==="" ? "" : String(p.price);
 }
 
+let storeTypeFromServer="";
+
 async function storeInfo(){
   if(!store_id||!token){
     qs("storeLine").innerHTML='<span class="bad">Μη έγκυρο link (λείπει store_id/token).</span>';
@@ -264,7 +266,19 @@ async function storeInfo(){
   }
   try{
     const res=await jsonp(API,{action:"store_info",store_id,token});
-    qs("storeLine").textContent=res.ok ? `Κατάστημα: ${res.store_name} • ${store_id}` : "Μη έγκυρο link.";
+    if(res.ok){
+      storeTypeFromServer = normType(res.store_type||"");
+      qs("storeLine").textContent = `Κατάστημα: ${res.store_name} • ${store_id}` + (storeTypeFromServer ? ` • ${storeTypeFromServer}`:"");
+
+      // ✅ Auto default filter: αν δεν έχεις ήδη αποθηκευμένη επιλογή, βάλε το store_type
+      if(!selectedTypes.length && storeTypeFromServer){
+        selectedTypes = [storeTypeFromServer];
+        saveTypes();
+      }
+      renderTypeChips();
+    }else{
+      qs("storeLine").textContent="Μη έγκυρο link.";
+    }
   }catch(e){
     qs("storeLine").innerHTML='<span class="bad">Δεν επικοινωνεί με server.</span>';
   }
@@ -291,18 +305,14 @@ async function lookup(){
     }
 
     const err = String(res.error||res.message||"").toLowerCase();
-    if(err.includes("not_found") || err.includes("notfound") || err.includes("no_product")){
+    if(err.includes("not_found")){
       isNewProduct = true;
-
       qs("internal_code").value="";
       qs("product_name").value="";
       qs("category").value="";
       qs("unit").value="";
       qs("master_price").value="";
-
-      setMsg("formStatus",
-        '<span class="bad">Δεν υπάρχει στον κατάλογο → συμπλήρωσε στοιχεία και πάτα Save (θα προστεθεί).</span>'
-      );
+      setMsg("formStatus",'<span class="bad">Δεν υπάρχει στον κατάλογο → συμπλήρωσε στοιχεία και πάτα Save (θα προστεθεί).</span>');
       qs("product_name").focus();
       return;
     }
@@ -367,7 +377,6 @@ function pushPending_(payload){
     localStorage.setItem(PENDING_KEY, JSON.stringify(cur));
   }catch(e){}
 }
-
 function popPending_(){
   try{
     const cur = JSON.parse(localStorage.getItem(PENDING_KEY)||"[]");
@@ -376,28 +385,21 @@ function popPending_(){
     return item;
   }catch(e){ return null; }
 }
-
 function pendingCount_(){
   try{ return (JSON.parse(localStorage.getItem(PENDING_KEY)||"[]")).length; }
   catch(e){ return 0; }
 }
-
 async function flushPending_(){
   if(!navigator.onLine) return;
   let item;
   while((item = popPending_())){
     try{
       const res = await jsonp(API, item);
-      if(!res || !res.ok){
-        pushPending_(item);
-        break;
-      }
-    }catch(e){
-      pushPending_(item);
-      break;
-    }
+      if(!res || !res.ok){ pushPending_(item); break; }
+    }catch(e){ pushPending_(item); break; }
   }
 }
+window.addEventListener("online", flushPending_);
 
 async function save(){
   let barcode = qs("barcode").value.trim();
@@ -408,6 +410,7 @@ async function save(){
 
   if(!barcode) barcode = "0";
 
+  // ✅ αν barcode=0, θέλει τουλάχιστον περιγραφή ή internal code
   if (barcode === "0" && !internalCode && !productName) {
     alert("Βάλε τουλάχιστον Περιγραφή ή Internal code.");
     return;
@@ -438,14 +441,12 @@ async function save(){
     add_to_catalog: (isNewProduct && barcode !== "0") ? "1" : "0"
   };
 
-  const savedName = payload.product_name;
   setMsg("formStatus", `<span class="small">Στάλθηκε… (queue: ${pendingCount_()})</span>`);
-  addRecent({barcode, product_name: savedName, price, vat: payload.vat, at: Date.now(), status: "pending"});
+  addRecent({barcode, product_name: payload.product_name, price, vat: payload.vat, at: Date.now(), status: "pending"});
 
   qs("price").value = "";
   qs("barcode").value = "";
   qs("barcode").focus();
-  lastDetected = "";
   isNewProduct = false;
 
   if(!navigator.onLine){
@@ -469,21 +470,19 @@ async function save(){
   });
 }
 
-window.addEventListener("online", flushPending_);
-
 // ===== Search =====
 let searchTimer=null;
+
 async function doSearch(force=false){
   const q=qs("q").value.trim();
   if(q.length<2){ qs("results").innerHTML=""; return; }
   if(!force){ clearTimeout(searchTimer); searchTimer=setTimeout(()=>doSearch(true),280); return; }
+
   qs("results").innerHTML='<div class="small">Searching…</div>';
 
-  console.log("SEARCH typesParam =", selectedTypes.join(","));
-
-
   try{
-    // ✅ ΣΤΕΛΝΟΥΜΕ types ΣΤΟΝ SERVER
+    // ✅ Αν ο χρήστης δεν έχει επιλέξει τίποτα, στέλνουμε κενό.
+    // Server θα βάλει auto το store_type του καταστήματος.
     const typesParam = selectedTypes.join(",");
     const res=await jsonp(API,{action:"store_search",store_id,token,q, types: typesParam});
 
@@ -493,10 +492,9 @@ async function doSearch(force=false){
     qs("results").innerHTML=items.map(it=>`
       <div class="item">
         <b>${it.product_name||"(χωρίς όνομα)"}</b>
-       <div class="small">
-  barcode: ${it.barcode||""} • internal: ${it.internal_code||""} • ${it.category||""} • ${it.unit||""} • τιμή: ${(it.price??"")} • type: ${it.store_type||""}
-</div>
-
+        <div class="small">
+          barcode: ${it.barcode||""} • internal: ${it.internal_code||""} • ${it.category||""} • ${it.unit||""} • τιμή: ${(it.price??"")}
+        </div>
         <div class="btnrow">
           <button class="grow" type="button"
             data-b="${it.barcode||""}"
@@ -526,11 +524,6 @@ async function doSearch(force=false){
         qs("master_price").value = pr;
 
         isNewProduct = false;
-        if(!b){
-          setMsg("formStatus", '<span class="small">Χωρίς barcode → στο Save θα μπει 0.</span>');
-          qs("price").focus();
-        }
-
         activateTab("scan");
         if (b) lookup();
         else qs("price").focus();
@@ -667,13 +660,10 @@ document.querySelectorAll("button[data-add]").forEach(btn=>{
 
 // init
 setPill(qs("pillOnline"),"server: …","");
-storeInfo();
-renderRecent();
-
-// ✅ init φίλτρων
 loadTypes();
 renderTypeChips();
-
+storeInfo();
+renderRecent();
 if(navigator.onLine) flushPending_();
 </script>
 </body>
