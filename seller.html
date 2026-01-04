@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>myscanner • Πωλητής</title>
+  <title>myscanner • Seller</title>
   <meta name="theme-color" content="#0b0f1a" />
   <style>
     :root{
@@ -59,7 +59,7 @@
       <div class="logo"></div>
       <div style="min-width:0">
         <h1>myscanner</h1>
-        <div class="sub">Πωλητής • Δημιουργία καταστημάτων</div>
+        <div class="sub">Seller • Δημιουργία καταστημάτων</div>
       </div>
     </div>
     <div id="pillServer" class="pill">server: …</div>
@@ -68,16 +68,22 @@
 
 <div class="wrap">
 
+  <!-- ✅ Banner όπως στο Scan (δεν δείχνει /api) -->
   <div class="card">
-    <div class="msg">
-      <span class="mono">/api</span>
-    </div>
+    <div class="small">Myscanner</div>
+    <div class="mono">Seller</div>
+  </div>
 
-    <label>Server endpoint (proxy)</label>
+  <!-- ✅ Ρυθμίσεις endpoint (το /api πάει εδώ, όχι στο banner) -->
+  <div class="card">
+    <div class="small">Ρυθμίσεις</div>
+    <div class="mono">API endpoint</div>
+
+    <label style="margin-top:12px">Server endpoint (proxy)</label>
     <div class="row">
       <div>
         <input id="api" placeholder="https://script.google.com/macros/s/AKfycbwaZmPMd2j0_ZUTC7VfhcPJvJLKioE_FotJg-_vl-_LIRelI9fBCeJqVz0-6Re9Y-fXdA/exec" />
-        <div class="msg"> <span class="mono" id="apiAuto">…</span></div>
+        <div class="msg"><span class="mono" id="apiAuto">…</span></div>
       </div>
       <div>
         <button id="btnSaveCfg" type="button" class="primary" style="width:100%">Αποθήκευση ρύθμισης</button>
