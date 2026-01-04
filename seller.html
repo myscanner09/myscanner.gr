@@ -69,7 +69,6 @@
 
 <div class="wrap">
 
-  <!-- Banner -->
   <div class="card">
     <div class="small">Myscanner</div>
     <div class="mono">Seller</div>
@@ -151,13 +150,12 @@
 </div>
 
 <script>
-  // ✅ ΣΤΑΘΕΡΟ: δεν φαίνεται πουθενά, δεν αλλάζει από χρήστη
-  const API = location.origin.replace(/\/$/, "") + "/api";
+  // ✅ ΕΔΩ είναι το “script” σύνδεσης στον server (Google Apps Script Web App)
+  const API = "https://script.google.com/macros/s/AKfycbxkPaNhUE-b8cYO3xFnRIh1A0MBsONaX-9PFcPjiVlSBk3hvyxPmK5G1f6_8v7ZWATeRg/exec";
 
-  // session only
   const SES_KEY = "MYS_SES";
 
-  // cleanup παλιών ρυθμίσεων (ώστε να μην ξαναεμφανιστούν από παλιό κώδικα / cache)
+  // Καθαρίζει παλιές ρυθμίσεις που έδειχναν endpoint κτλ
   try { localStorage.removeItem("myscanner_seller_cfg_v1"); } catch(e) {}
 
   function qs(id){ return document.getElementById(id); }
@@ -174,6 +172,7 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
   }
 
+  // JSONP helper
   function jsonp(api, params){
     return new Promise((resolve, reject)=>{
       const cb = "cb_" + Math.random().toString(36).slice(2);
