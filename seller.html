@@ -49,6 +49,7 @@
     .pill.ok{color:var(--ok)} .pill.bad{color:var(--bad)} .pill.warn{color:var(--warn)}
     .links a{display:block;word-break:break-all;margin:6px 0;color:var(--w);text-decoration:none}
     .links a:hover{text-decoration:underline}
+    .small{font-size:12px;color:var(--m)}
   </style>
 </head>
 
@@ -68,28 +69,10 @@
 
 <div class="wrap">
 
-  <!-- ✅ Banner όπως στο Scan (δεν δείχνει /api) -->
+  <!-- Banner όπως στο Scan -->
   <div class="card">
     <div class="small">Myscanner</div>
     <div class="mono">Seller</div>
-  </div>
-
-  <!-- ✅ Ρυθμίσεις endpoint (το /api πάει εδώ, όχι στο banner) -->
-  <div class="card">
-    <div class="small">Ρυθμίσεις</div>
-    <div class="mono">API endpoint</div>
-
-    <label style="margin-top:12px">Server endpoint (proxy)</label>
-    <div class="row">
-      <div>
-        <input id="api" placeholder="https://script.google.com/macros/s/AKfycbwaZmPMd2j0_ZUTC7VfhcPJvJLKioE_FotJg-_vl-_LIRelI9fBCeJqVz0-6Re9Y-fXdA/exec" />
-        <div class="msg"><span class="mono" id="apiAuto">…</span></div>
-      </div>
-      <div>
-        <button id="btnSaveCfg" type="button" class="primary" style="width:100%">Αποθήκευση ρύθμισης</button>
-        <div class="msg">Αποθηκεύεται τοπικά στον browser.</div>
-      </div>
-    </div>
   </div>
 
   <div class="card" id="loginCard">
@@ -168,7 +151,8 @@
 </div>
 
 <script>
-  const CFG_KEY = "myscanner_seller_cfg_v1";
+  // ✅ Δεν εμφανίζεται/δεν ζητάει endpoint. Χρησιμοποιεί πάντα το /api του site.
+  const API = location.origin.replace(/\/$/, "") + "/api";
   const SES_KEY = "MYS_SES";
 
   function qs(id){ return document.getElementById(id); }
@@ -178,24 +162,6 @@
     p.classList.remove("ok","bad","warn");
     if (cls) p.classList.add(cls);
     p.textContent = text;
-  }
-
-  function apiAutoDefault(){
-    return location.origin.replace(/\/$/, "") + "/api";
-  }
-
-  function loadCfg(){
-    try{ return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); }catch(e){ return {}; }
-  }
-  function saveCfg(obj){
-    localStorage.setItem(CFG_KEY, JSON.stringify(obj||{}));
-  }
-
-  function getApi(){
-    const cfg = loadCfg();
-    const manual = (qs("api").value||"").trim();
-    const saved = (cfg.api||"").trim();
-    return manual || saved || apiAutoDefault();
   }
 
   function validateEmail(s){
@@ -264,10 +230,6 @@
   }
 
   async function doLogin(){
-    const api = getApi();
-    // persist cfg if user typed something
-    saveCfg({ api: (qs("api").value||"").trim() });
-
     qs("loginStatus").innerHTML = '<span class="warn">Συνδέω…</span>';
     qs("loginOut").style.display = "none";
     qs("loginOut").textContent = "";
@@ -280,7 +242,7 @@
       if(!email || !validateEmail(email)) throw new Error("Λάθος email.");
       if(!pin) throw new Error("Λείπει PIN.");
 
-      const res = await jsonp(api, { action:"seller_login", email, pin });
+      const res = await jsonp(API, { action:"seller_login", email, pin });
 
       qs("loginOut").style.display = "block";
       qs("loginOut").textContent = JSON.stringify(res, null, 2);
@@ -316,9 +278,6 @@
   }
 
   async function addStore(){
-    const api = getApi();
-    saveCfg({ api: (qs("api").value||"").trim() });
-
     qs("storeStatus").innerHTML = '<span class="warn">Δημιουργώ…</span>';
     qs("resultCard").style.display = "none";
     qs("btnAddStore").disabled = true;
@@ -341,7 +300,7 @@
         is_test: qs("is_test").value
       };
 
-      const res = await jsonp(api, payload);
+      const res = await jsonp(API, payload);
       if(!res || !res.ok) throw new Error(res?.error || "failed");
 
       qs("scan_url").href = res.scan_url;
@@ -383,18 +342,6 @@ ${res.store_sheet_url}`;
   qs("btnAddStore").addEventListener("click", addStore);
   qs("btnStoreClear").addEventListener("click", clearStoreForm);
 
-  qs("btnSaveCfg").addEventListener("click", ()=>{
-    const v = (qs("api").value||"").trim();
-    if (v){
-      try{ new URL(v); }catch(e){
-        qs("loginStatus").innerHTML = '<span class="bad">Το endpoint δεν είναι έγκυρο URL.</span>';
-        return;
-      }
-    }
-    saveCfg({ api: v });
-    qs("loginStatus").innerHTML = '<span class="ok">OK • Αποθηκεύτηκε</span>';
-  });
-
   // Enter-to-submit
   ["email","pin"].forEach(id=>{
     qs(id).addEventListener("keydown",(e)=>{ if(e.key==="Enter") qs("btnLogin").click(); });
@@ -405,10 +352,6 @@ ${res.store_sheet_url}`;
 
   // init
   (function init(){
-    qs("apiAuto").textContent = apiAutoDefault();
-    const cfg = loadCfg();
-    if (cfg.api) qs("api").value = cfg.api;
-
     const ses = loadSession();
     if (ses && ses.email){
       window.session = ses;
@@ -420,7 +363,6 @@ ${res.store_sheet_url}`;
       setLoggedIn(false);
       qs("email").focus();
     }
-
     setPill("server: …", "");
   })();
 </script>
