@@ -543,7 +543,7 @@ async function doSearch(force=false){
   }
 }
 
-/* ===================== CAMERA (Android native + iOS ZXing fallback) ===================== */
+// ===== Camera =====
 let stream=null, scanning=false, detector=null;
 let zxingReader=null, zxingActive=false;
 let lastDetected="", lastAt=0;
@@ -559,6 +559,29 @@ function waitForZXing_(){
   });
 }
 
+function waitVideoReady_(v){
+  return new Promise((resolve, reject)=>{
+    const t0 = Date.now();
+    (function chk(){
+      // iOS: πολλές φορές θέλει λίγο χρόνο μέχρι να αποκτήσει διαστάσεις το stream
+      if(v.readyState >= 2 && v.videoWidth > 0 && v.videoHeight > 0) return resolve();
+      if(Date.now()-t0 > 4000) return reject(new Error("video_not_ready"));
+      setTimeout(chk, 80);
+    })();
+  });
+}
+
+function handleDetectedCode_(code){
+  const t=Date.now();
+  if(!code) return;
+  if(code && (code!==lastDetected || (t-lastAt)>2200)){
+    lastDetected=code; lastAt=t;
+    qs("barcode").value=code;
+    scheduleLookup();
+    if(navigator.vibrate) navigator.vibrate(20);
+  }
+}
+
 async function startCam(){
   if(location.protocol!=="https:" && location.hostname!=="localhost"){
     qs("camStatus").innerHTML='<span class="bad">Χρειάζεται HTTPS για κάμερα.</span>';
@@ -571,22 +594,31 @@ async function startCam(){
     return;
   }
 
+  const v=qs("video");
+  v.setAttribute("playsinline","true");
+  v.setAttribute("autoplay","true");
+  v.muted=true;
+
+  qs("camStatus").innerHTML='<span class="small">Ανοίγω κάμερα…</span>';
+
   try{
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:{ideal:"environment"}}, audio:false
+    // 1) Πάρε stream
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false
     });
 
-    const v=qs("video");
-    v.setAttribute("playsinline","true");
-    v.muted=true;
-    v.srcObject=stream;
+    v.srcObject = stream;
     await v.play();
+
+    // 2) Περίμενε να “δέσει” το video στο iOS
+    await waitVideoReady_(v);
 
     scanning=true;
     qs("btnStart").disabled=true;
     qs("btnStop").disabled=false;
 
-    // ✅ Android/Chrome: use BarcodeDetector (no change in behavior)
+    // ✅ Android/Chrome path (δεν αλλάζει)
     if("BarcodeDetector" in window){
       detector=new BarcodeDetector({formats:["ean_13","ean_8","code_128","upc_a","upc_e"]});
       setPill(qs("pillCam"),"camera: on","ok");
@@ -595,33 +627,52 @@ async function startCam(){
       return;
     }
 
-    // ✅ iOS/Safari fallback: ZXing
+    // ✅ iOS/Safari path (ZXing)
     setPill(qs("pillCam"),"camera: loading…","");
 
     await waitForZXing_();
-    zxingReader = new ZXing.BrowserMultiFormatReader();
+
+    // Hints: βοήθα το ZXing να ψάχνει EAN/UPC/Code128 (πιο γρήγορα + πιο αξιόπιστα)
+    const hints = new Map();
+    try{
+      hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+      hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+        ZXing.BarcodeFormat.EAN_13,
+        ZXing.BarcodeFormat.EAN_8,
+        ZXing.BarcodeFormat.UPC_A,
+        ZXing.BarcodeFormat.UPC_E,
+        ZXing.BarcodeFormat.CODE_128
+      ]);
+    }catch(e){}
+
+    // timeBetweenScans (ms): μικρό αλλά όχι 0 (iOS θέλει ανάσες)
+    zxingReader = new ZXing.BrowserMultiFormatReader(hints, 250);
     zxingActive = true;
 
     setPill(qs("pillCam"),"camera: on (ios)","ok");
-    qs("camStatus").innerHTML='<span class="ok">Κάμερα ενεργή (iOS mode). Σκάναρε barcode.</span>';
+    qs("camStatus").innerHTML='<span class="ok">Κάμερα ενεργή (iOS). Σκάναρε barcode.</span>';
 
-    zxingReader.decodeFromVideoElementContinuously(v, (result, err) => {
+    // Πιο αξιόπιστο στο iOS: decodeFromVideoDeviceContinuously αντί για decodeFromVideoElementContinuously
+    // (χρησιμοποιεί το video element, αλλά “κλειδώνει” καλύτερα το loop)
+    zxingReader.decodeFromVideoDeviceContinuously(undefined, v, (result, err) => {
       if(!zxingActive) return;
+
       if(result?.text){
-        const code=String(result.text||"");
-        const t=Date.now();
-        if(code && (code!==lastDetected || (t-lastAt)>2200)){
-          lastDetected=code; lastAt=t;
-          qs("barcode").value=code;
-          scheduleLookup();
-          if(navigator.vibrate) navigator.vibrate(20);
-        }
+        handleDetectedCode_(String(result.text || ""));
+        return;
       }
+
+      // Μην “πνίγεις” το UI με errors NotFound (είναι φυσιολογικό όταν δεν βλέπει barcode)
+      // Αν θες debug, ξεσχόλιασε:
+      // if(err && !(err.name === "NotFoundException")) qs("camStatus").innerHTML = '<span class="bad">'+(err.message||err)+'</span>';
     });
 
   }catch(e){
-    qs("camStatus").innerHTML='<span class="bad">Δεν δόθηκε άδεια κάμερας.</span>';
+    qs("camStatus").innerHTML='<span class="bad">Δεν δόθηκε άδεια κάμερας ή απέτυχε το stream.</span>';
     setPill(qs("pillCam"),"camera: blocked","bad");
+    try{ if(stream) stream.getTracks().forEach(t=>t.stop()); }catch(_){}
+    stream=null;
+    v.srcObject=null;
   }
 }
 
@@ -632,13 +683,7 @@ async function tickNative_(){
     const barcodes=await detector.detect(v);
     if(barcodes && barcodes.length){
       const code=barcodes[0].rawValue||"";
-      const t=Date.now();
-      if(code && (code!==lastDetected || (t-lastAt)>2200)){
-        lastDetected=code; lastAt=t;
-        qs("barcode").value=code;
-        scheduleLookup();
-        if(navigator.vibrate) navigator.vibrate(20);
-      }
+      handleDetectedCode_(code);
     }
   }catch(e){}
   requestAnimationFrame(tickNative_);
@@ -657,11 +702,14 @@ function stopCam(){
 
   try{ if(stream) stream.getTracks().forEach(t=>t.stop()); }catch(e){}
   stream=null;
-  qs("video").srcObject=null;
+
+  const v=qs("video");
+  v.srcObject=null;
 
   setPill(qs("pillCam"),"camera: off","");
   qs("camStatus").textContent="";
 }
+
 /* ====================================================================== */
 
 function activateTab(tab){
