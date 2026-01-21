@@ -47,6 +47,18 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
 .small{font-size:12px;color:var(--m);line-height:1.35}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;word-break:break-all;font-size:12px;color:var(--m)}
 </style>
+
+<!-- ✅ ZXing fallback loader (loads ONLY when BarcodeDetector is missing, iOS/Safari) -->
+<script>
+(function(){
+  if ("BarcodeDetector" in window) return; // Android/Chrome: keep native, no extra load
+  var s = document.createElement("script");
+  s.src = "https://unpkg.com/@zxing/library@0.21.2";
+  s.async = true;
+  document.head.appendChild(s);
+})();
+</script>
+
 </head>
 <body>
 <header>
@@ -270,7 +282,6 @@ async function storeInfo(){
       storeTypeFromServer = normType(res.store_type||"");
       qs("storeLine").textContent = `Κατάστημα: ${res.store_name} • ${store_id}` + (storeTypeFromServer ? ` • ${storeTypeFromServer}`:"");
 
-      // ✅ Auto default filter: αν δεν έχεις ήδη αποθηκευμένη επιλογή, βάλε το store_type
       if(!selectedTypes.length && storeTypeFromServer){
         selectedTypes = [storeTypeFromServer];
         saveTypes();
@@ -410,7 +421,6 @@ async function save(){
 
   if(!barcode) barcode = "0";
 
-  // ✅ αν barcode=0, θέλει τουλάχιστον περιγραφή ή internal code
   if (barcode === "0" && !internalCode && !productName) {
     alert("Βάλε τουλάχιστον Περιγραφή ή Internal code.");
     return;
@@ -481,8 +491,6 @@ async function doSearch(force=false){
   qs("results").innerHTML='<div class="small">Searching…</div>';
 
   try{
-    // ✅ Αν ο χρήστης δεν έχει επιλέξει τίποτα, στέλνουμε κενό.
-    // Server θα βάλει auto το store_type του καταστήματος.
     const typesParam = selectedTypes.join(",");
     const res=await jsonp(API,{action:"store_search",store_id,token,q, types: typesParam});
 
@@ -535,9 +543,21 @@ async function doSearch(force=false){
   }
 }
 
-// ===== Camera =====
+/* ===================== CAMERA (Android native + iOS ZXing fallback) ===================== */
 let stream=null, scanning=false, detector=null;
+let zxingReader=null, zxingActive=false;
 let lastDetected="", lastAt=0;
+
+function waitForZXing_(){
+  return new Promise((resolve,reject)=>{
+    const start=Date.now();
+    (function check(){
+      if(window.ZXing?.BrowserMultiFormatReader) return resolve();
+      if(Date.now()-start>8000) return reject(new Error("ZXing load timeout"));
+      setTimeout(check,80);
+    })();
+  });
+}
 
 async function startCam(){
   if(location.protocol!=="https:" && location.hostname!=="localhost"){
@@ -545,40 +565,68 @@ async function startCam(){
     setPill(qs("pillCam"),"camera: https","bad");
     return;
   }
-  if(!("mediaDevices" in navigator) || !navigator.mediaDevices.getUserMedia){
+  if(!navigator.mediaDevices?.getUserMedia){
     qs("camStatus").innerHTML='<span class="bad">Δεν υποστηρίζει κάμερα.</span>';
     setPill(qs("pillCam"),"camera: unsupported","bad");
     return;
   }
-  if(!("BarcodeDetector" in window)){
-    qs("camStatus").innerHTML='<span class="bad">Θέλει Chrome/Android (BarcodeDetector).</span>';
-    setPill(qs("pillCam"),"camera: no-detector","bad");
-    return;
-  }
-
-  detector=new BarcodeDetector({formats:["ean_13","ean_8","code_128","upc_a","upc_e"]});
 
   try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:"environment"}}, audio:false
+    });
+
     const v=qs("video");
+    v.setAttribute("playsinline","true");
+    v.muted=true;
     v.srcObject=stream;
     await v.play();
-    scanning=true;
 
+    scanning=true;
     qs("btnStart").disabled=true;
     qs("btnStop").disabled=false;
 
-    setPill(qs("pillCam"),"camera: on","ok");
-    qs("camStatus").innerHTML='<span class="ok">Κάμερα ενεργή. Σκάναρε barcode.</span>';
-    tick();
+    // ✅ Android/Chrome: use BarcodeDetector (no change in behavior)
+    if("BarcodeDetector" in window){
+      detector=new BarcodeDetector({formats:["ean_13","ean_8","code_128","upc_a","upc_e"]});
+      setPill(qs("pillCam"),"camera: on","ok");
+      qs("camStatus").innerHTML='<span class="ok">Κάμερα ενεργή. Σκάναρε barcode.</span>';
+      tickNative_();
+      return;
+    }
+
+    // ✅ iOS/Safari fallback: ZXing
+    setPill(qs("pillCam"),"camera: loading…","");
+
+    await waitForZXing_();
+    zxingReader = new ZXing.BrowserMultiFormatReader();
+    zxingActive = true;
+
+    setPill(qs("pillCam"),"camera: on (ios)","ok");
+    qs("camStatus").innerHTML='<span class="ok">Κάμερα ενεργή (iOS mode). Σκάναρε barcode.</span>';
+
+    zxingReader.decodeFromVideoElementContinuously(v, (result, err) => {
+      if(!zxingActive) return;
+      if(result?.text){
+        const code=String(result.text||"");
+        const t=Date.now();
+        if(code && (code!==lastDetected || (t-lastAt)>2200)){
+          lastDetected=code; lastAt=t;
+          qs("barcode").value=code;
+          scheduleLookup();
+          if(navigator.vibrate) navigator.vibrate(20);
+        }
+      }
+    });
+
   }catch(e){
     qs("camStatus").innerHTML='<span class="bad">Δεν δόθηκε άδεια κάμερας.</span>';
     setPill(qs("pillCam"),"camera: blocked","bad");
   }
 }
 
-async function tick(){
-  if(!scanning) return;
+async function tickNative_(){
+  if(!scanning || !detector) return;
   try{
     const v=qs("video");
     const barcodes=await detector.detect(v);
@@ -593,19 +641,28 @@ async function tick(){
       }
     }
   }catch(e){}
-  requestAnimationFrame(tick);
+  requestAnimationFrame(tickNative_);
 }
 
 function stopCam(){
   scanning=false;
+
+  // stop ZXing if running
+  zxingActive=false;
+  try{ if(zxingReader){ zxingReader.reset(); } }catch(e){}
+  zxingReader=null;
+
   qs("btnStart").disabled=false;
   qs("btnStop").disabled=true;
+
   try{ if(stream) stream.getTracks().forEach(t=>t.stop()); }catch(e){}
   stream=null;
   qs("video").srcObject=null;
+
   setPill(qs("pillCam"),"camera: off","");
   qs("camStatus").textContent="";
 }
+/* ====================================================================== */
 
 function activateTab(tab){
   const tabs={scan:"tabScan",search:"tabSearch",recent:"tabRecent"};
