@@ -15,7 +15,6 @@
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
 
-/* ✅ πιο “λεπτό” header */
 header{
   position:sticky;top:0;z-index:50;
   background:rgba(11,15,26,.78);
@@ -32,7 +31,6 @@ h1{margin:0;font-size:18px;line-height:1.05}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56vw
 }
 
-/* ✅ μικρότερα pills server/camera */
 .pills{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .pill{
   padding:6px 8px;border-radius:999px;
@@ -63,7 +61,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 .quick{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
 .quick button{padding:10px 12px;font-size:14px;border-radius:14px}
 .bottom{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(11,15,26,.82);border-top:1px solid var(--b);backdrop-filter:blur(10px);z-index:60}
-.nav{max-width:980px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.nav{max-width:980px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
 .tab{border-radius:16px;padding:12px 10px;font-weight:900;text-align:center}
 .tab.active{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.28)}
 .list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
@@ -72,7 +70,13 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 .small{font-size:12px;color:var(--m);line-height:1.35}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;word-break:break-all;font-size:12px;color:var(--m)}
 
-/* ✅ mobile ακόμα πιο σφιχτό */
+/* ===== Weighted grid ===== */
+.wgrid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+  margin-top:12px;
+}
 @media(max-width:820px){
   :root{--camH:160px;}
   .grid2{grid-template-columns:1fr}
@@ -80,7 +84,40 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
   .card{padding:10px;margin:8px 0}
   label{margin:8px 0 6px}
   .msg{margin-top:6px}
+  .wgrid{grid-template-columns:repeat(2,1fr);}
 }
+.wcard{
+  border:1px solid var(--b);
+  background:var(--card2);
+  border-radius:16px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  min-height:180px;
+}
+.wimg{
+  width:100%;
+  height:110px;
+  background:rgba(255,255,255,.06);
+  display:block;
+  object-fit:cover;
+}
+.wbody{ padding:10px; display:flex; flex-direction:column; gap:6px; flex:1; }
+.wname{ font-weight:900; font-size:14px; line-height:1.15; }
+.wsub{ font-size:12px; color:var(--m); line-height:1.2; }
+.wbadges{ display:flex; gap:6px; flex-wrap:wrap; }
+.badge{
+  font-size:11px;
+  padding:5px 8px;
+  border-radius:999px;
+  border:1px solid var(--b);
+  background:rgba(255,255,255,.08);
+  color:var(--m);
+  line-height:1;
+}
+.badge.ok{ color:var(--ok); }
+.wbtn{ margin-top:auto; }
+.wbtn button{ width:100%; padding:10px 12px; border-radius:14px; font-size:14px; }
 </style>
 
 <script>
@@ -137,7 +174,6 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
         </div>
 
         <div class="col formcol">
-          <!-- ✅ 1) Barcode πρώτο -->
           <label>Barcode</label>
           <div class="btnrow">
             <input id="barcode" class="grow" placeholder="σκάναρε ή γράψε" inputmode="numeric">
@@ -145,11 +181,9 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
             <button id="btnClear" type="button">Clear</button>
           </div>
 
-          <!-- ✅ 2) Περιγραφή δεύτερη -->
           <label>Περιγραφή</label>
           <input id="product_name" placeholder="(από κατάλογο ή χειροκίνητα)">
 
-          <!-- ✅ 3) Internal code κάτω από περιγραφή -->
           <label>Internal code</label>
           <input id="internal_code" placeholder="(από κατάλογο)">
 
@@ -191,6 +225,31 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
     </div>
   </section>
 
+  <section id="paneWeighted" style="display:none">
+    <div class="card">
+      <label>Αναζήτηση ζυγιζόμενων</label>
+      <div class="btnrow">
+        <input id="wq" class="grow" placeholder="π.χ. κιμάς, μήλα, W001, barcode">
+        <button id="btnWSearch" class="primary" type="button">Search</button>
+        <button id="btnWClear" type="button">Clear</button>
+      </div>
+
+      <div class="grid2" style="margin-top:10px">
+        <div>
+          <label>Κατηγορία</label>
+          <select id="wCategory"></select>
+        </div>
+        <div>
+          <label>Υποκατηγορία</label>
+          <select id="wSubcategory"></select>
+        </div>
+      </div>
+
+      <div class="msg" id="wMeta"></div>
+      <div id="wGrid" class="wgrid"></div>
+    </div>
+  </section>
+
   <section id="paneSearch" style="display:none">
     <div class="card">
       <label>Λεκτική αναζήτηση (όνομα / barcode / internal code)</label>
@@ -217,6 +276,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 <nav class="bottom">
   <div class="nav">
     <button id="tabScan" class="tab active" type="button">Scan</button>
+    <button id="tabWeighted" class="tab" type="button">Ζυγιζόμενα</button>
     <button id="tabSearch" class="tab" type="button">Αναζήτηση</button>
     <button id="tabRecent" class="tab" type="button">Recent</button>
   </div>
@@ -419,6 +479,142 @@ function renderRecent(){
     });
   });
 }
+
+/* ===================== WEIGHTED UI ===================== */
+let wMetaCache = {categories:[], subcategories:{}};
+let wItemsCache = [];
+let __wTimer = null;
+
+function setSelectOptions_(sel, options, placeholder){
+  sel.innerHTML = "";
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = placeholder;
+  sel.appendChild(opt0);
+  (options||[]).forEach(v=>{
+    const o=document.createElement("option");
+    o.value=v; o.textContent=v;
+    sel.appendChild(o);
+  });
+}
+
+function renderWMeta_(){
+  setSelectOptions_(qs("wCategory"), wMetaCache.categories, "Όλες");
+  setSelectOptions_(qs("wSubcategory"), [], "Όλες");
+}
+
+function updateWSubcategories_(){
+  const cat = qs("wCategory").value;
+  const subs = (cat && wMetaCache.subcategories && wMetaCache.subcategories[cat]) ? wMetaCache.subcategories[cat] : [];
+  setSelectOptions_(qs("wSubcategory"), subs, "Όλες");
+}
+
+function renderWGrid_(items){
+  const box = qs("wGrid");
+  if(!items || !items.length){
+    box.innerHTML = `<div class="small">Δεν βρέθηκαν ζυγιζόμενα.</div>`;
+    return;
+  }
+
+  box.innerHTML = items.map(it=>{
+    const fixed = !!it.fixed_price;
+    const price = (it.price_per_kg!=null && it.price_per_kg!==0) ? Number(it.price_per_kg).toFixed(2) : "";
+    const step  = it.step_g ? `${it.step_g}g` : "";
+    const fixedTxt = fixed ? `Fix ${it.fixed_g||""}g` : "";
+    const photo = it.photo_url ? it.photo_url : "";
+
+    return `
+      <div class="wcard">
+        ${photo ? `<img class="wimg" src="${photo}" alt="">` : `<div class="wimg"></div>`}
+        <div class="wbody">
+          <div class="wname">${(it.name||"(χωρίς όνομα)")}</div>
+          <div class="wsub">${it.category||""}${it.subcategory ? " • "+it.subcategory : ""}</div>
+
+          <div class="wbadges">
+            ${price ? `<span class="badge">€/kg ${price}</span>` : `<span class="badge">€/kg —</span>`}
+            ${step ? `<span class="badge">βήμα ${step}</span>` : `<span class="badge">βήμα —</span>`}
+            ${fixed ? `<span class="badge ok">${fixedTxt}</span>` : ``}
+          </div>
+
+          <div class="wbtn">
+            <button class="primary" type="button"
+              data-wadd="1"
+              data-product_id="${(it.product_id||"")}"
+              data-name="${(it.name||"").replace(/"/g,'&quot;')}"
+              data-barcode="${(it.barcode||"")}"
+              data-price_per_kg="${it.price_per_kg||0}"
+              data-step_g="${it.step_g||0}"
+              data-fixed_price="${fixed?1:0}"
+              data-fixed_g="${it.fixed_g||0}"
+            >Προσθήκη</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  box.querySelectorAll("button[data-wadd]").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const payload = {
+        action:"weighted_add",
+        store_id,
+        token,
+        product_id: btn.getAttribute("data-product_id")||"",
+        name: btn.getAttribute("data-name")||"",
+        barcode: btn.getAttribute("data-barcode")||"",
+        price_per_kg: btn.getAttribute("data-price_per_kg")||"0",
+        step_g: btn.getAttribute("data-step_g")||"0",
+        fixed_price: btn.getAttribute("data-fixed_price")||"0",
+        fixed_g: btn.getAttribute("data-fixed_g")||"0",
+      };
+
+      qs("wMeta").innerHTML = `<span class="small">Προσθήκη…</span>`;
+      try{
+        const res = await jsonp(API, payload);
+        if(res && res.ok){
+          qs("wMeta").innerHTML = `<span class="ok">Προστέθηκε ✔ στο ${res.tab}</span>`;
+          if(navigator.vibrate) navigator.vibrate([30,20,30]);
+        }else{
+          qs("wMeta").innerHTML = `<span class="bad">Αποτυχία: ${res && (res.error||res.message) ? (res.error||res.message) : "unknown"}</span>`;
+        }
+      }catch(e){
+        qs("wMeta").innerHTML = `<span class="bad">Server error</span>`;
+      }
+    });
+  });
+}
+
+async function loadWeighted_(initial=false){
+  const q = (qs("wq").value||"").trim();
+  const category = qs("wCategory").value || "";
+  const subcategory = qs("wSubcategory").value || "";
+
+  qs("wMeta").innerHTML = `<span class="small">Φόρτωση…</span>`;
+  qs("wGrid").innerHTML = "";
+
+  try{
+    const res = await jsonp(API, {action:"weighted_catalog", store_id, token, q, category, subcategory});
+    if(!res || !res.ok){
+      qs("wMeta").innerHTML = `<span class="bad">Σφάλμα: ${res && (res.error||res.message) ? (res.error||res.message) : "unknown"}</span>`;
+      return;
+    }
+
+    wMetaCache = res.meta || {categories:[], subcategories:{}};
+    wItemsCache = res.items || [];
+
+    if(initial){
+      renderWMeta_();
+      updateWSubcategories_();
+    }
+
+    qs("wMeta").innerHTML = `<span class="small">Βρέθηκαν: <b>${wItemsCache.length}</b></span>`;
+    renderWGrid_(wItemsCache);
+
+  }catch(e){
+    qs("wMeta").innerHTML = `<span class="bad">Server error</span>`;
+  }
+}
+/* =================== /WEIGHTED UI =================== */
 
 // ===== Background Save Queue =====
 const PENDING_KEY = "myscanner_pending_"+store_id;
@@ -727,12 +923,16 @@ function stopCam(){
 /* ====================================================================== */
 
 function activateTab(tab){
-  const tabs={scan:"tabScan",search:"tabSearch",recent:"tabRecent"};
-  ["scan","search","recent"].forEach(k=>qs(tabs[k]).classList.toggle("active",k===tab));
+  const tabs={scan:"tabScan",weighted:"tabWeighted",search:"tabSearch",recent:"tabRecent"};
+  ["scan","weighted","search","recent"].forEach(k=>qs(tabs[k]).classList.toggle("active",k===tab));
+
   qs("paneScan").style.display=(tab==="scan")?"":"none";
+  qs("paneWeighted").style.display=(tab==="weighted")?"":"none";
   qs("paneSearch").style.display=(tab==="search")?"":"none";
   qs("paneRecent").style.display=(tab==="recent")?"":"none";
+
   if(tab==="recent") renderRecent();
+  if(tab==="weighted") loadWeighted_(true);
 }
 
 // wiring
@@ -758,8 +958,27 @@ qs("btnSearch").addEventListener("click",()=>doSearch(true));
 qs("q").addEventListener("input",()=>doSearch(false));
 
 qs("tabScan").addEventListener("click",()=>activateTab("scan"));
+qs("tabWeighted").addEventListener("click",()=>activateTab("weighted"));
 qs("tabSearch").addEventListener("click",()=>activateTab("search"));
 qs("tabRecent").addEventListener("click",()=>activateTab("recent"));
+
+qs("btnWSearch").addEventListener("click",()=>loadWeighted_(false));
+qs("btnWClear").addEventListener("click",()=>{
+  qs("wq").value="";
+  qs("wCategory").value="";
+  qs("wSubcategory").value="";
+  updateWSubcategories_();
+  loadWeighted_(false);
+});
+qs("wq").addEventListener("input", ()=>{
+  clearTimeout(__wTimer);
+  __wTimer=setTimeout(()=>loadWeighted_(false), 260);
+});
+qs("wCategory").addEventListener("change", ()=>{
+  updateWSubcategories_();
+  loadWeighted_(false);
+});
+qs("wSubcategory").addEventListener("change", ()=>loadWeighted_(false));
 
 qs("btnMaster").addEventListener("click",()=>{
   const mp=qs("master_price").value.trim();
