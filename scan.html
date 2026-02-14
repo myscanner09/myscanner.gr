@@ -11,7 +11,6 @@
   --b:rgba(255,255,255,.12);--t:rgba(255,255,255,.92);--m:rgba(255,255,255,.68);
   --ok:#37d67a;--bad:#ff4d4d;--w:#fff;--k:#111;
   --camH:170px;
-
   --dd-bg:#0f1628;
   --dd-t:#ffffff;
 }
@@ -110,7 +109,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 .wbtn{margin-top:auto}
 .wbtn button{width:100%;padding:10px 12px;border-radius:14px;font-size:14px}
 
-/* Weighted modal */
+/* Modal base */
 .modal{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:14px}
 .modal.show{display:flex}
 .modalCard{width:min(740px,100%);background:rgba(11,15,26,.96);border:1px solid rgba(255,255,255,.18);border-radius:20px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.45)}
@@ -123,7 +122,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 .switchRow input{width:auto;transform:scale(1.2)}
 .hr{height:1px;background:rgba(255,255,255,.10);margin:12px 0}
 
-/* preset chips */
+/* preset chips (multi) */
 .presetRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .pchip{padding:9px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:var(--t);font-weight:900;font-size:13px}
 .pchip.on{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.26)}
@@ -165,6 +164,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
     <div class="mono">Scan</div>
   </div>
 
+  <!-- Scan pane -->
   <section id="paneScan">
     <div class="card">
       <div class="row">
@@ -234,7 +234,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
     </div>
   </section>
 
-  <!-- ✅ Weighted pane -->
+  <!-- Weighted pane -->
   <section id="paneWeighted" style="display:none">
     <div class="card">
       <label>Αναζήτηση ζυγιζόμενων</label>
@@ -244,7 +244,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
         <button id="btnWClear" type="button">Clear</button>
       </div>
 
-      <!-- ✅ NEW: Store type πριν από κατηγορία -->
+      <!-- ✅ store_type πριν από κατηγορία -->
       <div class="grid2" style="margin-top:10px">
         <div>
           <label>Τύπος καταστήματος</label>
@@ -261,14 +261,17 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
           <label>Υποκατηγορία</label>
           <select id="wSubcategory"></select>
         </div>
-        <div></div>
+        <div style="display:flex;align-items:end;gap:10px;justify-content:flex-end">
+          <button id="btnWAddNew" type="button">+ Προσθήκη προϊόντος</button>
+        </div>
       </div>
 
-      <div class="msg" id="wMeta"></div>
+      <div id="wMeta" class="msg"></div>
       <div id="wGrid" class="wgrid"></div>
     </div>
   </section>
 
+  <!-- Search pane -->
   <section id="paneSearch" style="display:none">
     <div class="card">
       <label>Λεκτική αναζήτηση (όνομα / barcode / internal code)</label>
@@ -291,6 +294,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
     </div>
   </section>
 
+  <!-- Recent pane -->
   <section id="paneRecent" style="display:none">
     <div class="card">
       <div class="small">Πρόσφατα (τοπικά στο κινητό)</div>
@@ -299,7 +303,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
   </section>
 </div>
 
-<!-- Weighted Modal -->
+<!-- Weighted Modal (ρύθμιση τιμής/βημάτων) -->
 <div id="wModal" class="modal" aria-hidden="true">
   <div class="modalCard" role="dialog" aria-modal="true">
     <div class="modalHead">
@@ -328,10 +332,10 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
           <input id="wmPriceKg" inputmode="decimal" placeholder="π.χ. 9.90">
         </div>
         <div>
-          <label>Βήμα (g)</label>
-          <input id="wmStepG" inputmode="numeric" placeholder="π.χ. 100">
+          <label>Βήμα(τα) (g)</label>
+          <input id="wmStepG" inputmode="numeric" placeholder="π.χ. 100,250,500">
           <div id="wmStepPresets" class="presetRow"></div>
-          <div class="small">Μπορείς να επιλέξεις ΠΟΛΛΑ βήματα (chips).</div>
+          <div class="small">Multi επιλογή → γράφει <b>σε μία σειρά</b> π.χ. <b>100,250,500</b>.</div>
         </div>
       </div>
 
@@ -341,7 +345,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
         <input id="wmFixedOn" type="checkbox">
         <div style="min-width:0">
           <div style="font-weight:900">Fixed γραμμάρια</div>
-          <div class="small">Αν βάλεις Fixed price, τότε είναι υποχρεωτικό και δουλεύει μόνο με αυτό.</div>
+          <div class="small">Αν βάλεις Fixed price, τότε ισχύει μόνο αυτό (και step = fixed_g).</div>
         </div>
       </div>
 
@@ -362,6 +366,54 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
     <div class="modalFoot">
       <button id="wmCancel" type="button">Άκυρο</button>
       <button id="wmSave" class="primary" type="button">Αποθήκευση</button>
+    </div>
+  </div>
+</div>
+
+<!-- ✅ New Weighted Product Modal (προσθήκη στον κατάλογο WEIGHTED_MASTER) -->
+<div id="nwModal" class="modal" aria-hidden="true">
+  <div class="modalCard" role="dialog" aria-modal="true">
+    <div class="modalHead">
+      <div style="min-width:0">
+        <div class="modalTitle">Νέο ζυγιζόμενο προϊόν</div>
+        <div class="modalSub">Θα προστεθεί στο WEIGHTED_MASTER και μετά θα το ρυθμίσεις (τιμή/βήματα).</div>
+      </div>
+      <button id="nwCloseTop" type="button">✕</button>
+    </div>
+    <div class="modalBody">
+      <div class="grid2">
+        <div>
+          <label>Τύπος καταστήματος</label>
+          <select id="nwStoreType"></select>
+        </div>
+        <div>
+          <label>Κατηγορία</label>
+          <input id="nwCategory" placeholder="π.χ. ΚΡΕΑΤΙΚΑ">
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-top:10px">
+        <div>
+          <label>Υποκατηγορία</label>
+          <input id="nwSubcategory" placeholder="π.χ. ΚΙΜΑΣ">
+        </div>
+        <div>
+          <label>Barcode (προαιρετικό)</label>
+          <input id="nwBarcode" placeholder="EAN αν υπάρχει">
+        </div>
+      </div>
+
+      <label>Όνομα προϊόντος</label>
+      <input id="nwName" placeholder="π.χ. ΜΟΣΧΑΡΙ ΚΙΜΑΣ">
+
+      <label>Photo URL (προαιρετικό)</label>
+      <input id="nwPhoto" placeholder="https://...jpg">
+
+      <div id="nwMsg" class="msg"></div>
+    </div>
+    <div class="modalFoot">
+      <button id="nwCancel" type="button">Άκυρο</button>
+      <button id="nwSave" class="primary" type="button">Προσθήκη</button>
     </div>
   </div>
 </div>
@@ -606,7 +658,7 @@ let wItemsCache = [];
 let __wTimer = null;
 
 let wSelectedItem = null;
-let wmSelectedSteps = new Set(); // multi step selections
+let wmSelectedSteps = new Set(); // ✅ multi step selections
 
 function setSelectOptions_(sel, options, placeholder, currentValue){
   sel.innerHTML = "";
@@ -627,14 +679,10 @@ function renderWMeta_(preserve=true){
   const curCat  = preserve ? (qs("wCategory").value || "") : "";
   const curSub  = preserve ? (qs("wSubcategory").value || "") : "";
 
-  // ✅ store types from WEIGHTED_MASTER meta.store_types
-  // default option = auto (storeTypeFromServer)
   const autoLabel = storeTypeFromServer ? `(auto: ${storeTypeFromServer})` : "(auto από κατάστημα)";
   setSelectOptions_(qs("wStoreType"), wMetaCache.store_types, autoLabel, curType);
 
   setSelectOptions_(qs("wCategory"), wMetaCache.categories, "Όλες", curCat);
-
-  // subcats depend on category
   updateWSubcategories_(curSub);
 }
 
@@ -644,39 +692,50 @@ function updateWSubcategories_(preserveValue){
   setSelectOptions_(qs("wSubcategory"), subs, "Όλες", preserveValue || "");
 }
 
-// ✅ MULTI step presets
-function renderPresetRow_(containerId, onPick, multi=false){
+function parseCsvNums_(s){
+  const raw = String(s||"").trim();
+  if(!raw) return [];
+  return raw
+    .split(/[,\s]+/g)
+    .map(x => Math.round(Number(String(x).replace(",", "."))))
+    .filter(n => Number.isFinite(n) && n>0);
+}
+
+function renderPresetRowMulti_(containerId, inputId){
   const box = qs(containerId);
+  const input = qs(inputId);
+
+  // seed from input
+  wmSelectedSteps = new Set(parseCsvNums_(input.value));
+
+  function sync(){
+    const arr = Array.from(wmSelectedSteps).sort((a,b)=>a-b);
+    input.value = arr.join(",");
+    box.querySelectorAll(".pchip").forEach(btn=>{
+      const g = Number(btn.getAttribute("data-g"));
+      btn.classList.toggle("on", wmSelectedSteps.has(g));
+    });
+  }
+
   box.innerHTML = PRESETS_G.map(g=>`<button type="button" class="pchip" data-g="${g}">${g}g</button>`).join("");
 
   box.querySelectorAll("button[data-g]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       const g = Number(btn.getAttribute("data-g"));
       if(!g) return;
-
-      if(multi){
-        if(wmSelectedSteps.has(g)){
-          wmSelectedSteps.delete(g);
-          btn.classList.remove("on");
-        }else{
-          wmSelectedSteps.add(g);
-          btn.classList.add("on");
-        }
-        qs("wmStepG").value = String(g);
-      }else{
-        box.querySelectorAll(".pchip").forEach(x=>x.classList.remove("on"));
-        btn.classList.add("on");
-        onPick(g);
-      }
+      if(wmSelectedSteps.has(g)) wmSelectedSteps.delete(g);
+      else wmSelectedSteps.add(g);
+      sync();
     });
   });
 
-  if(multi){
-    box.querySelectorAll("button[data-g]").forEach(btn=>{
-      const g = Number(btn.getAttribute("data-g"));
-      if(wmSelectedSteps.has(g)) btn.classList.add("on");
-    });
-  }
+  // manual typing also updates set
+  input.addEventListener("input", ()=>{
+    wmSelectedSteps = new Set(parseCsvNums_(input.value));
+    sync();
+  }, { once:true });
+
+  sync();
 }
 
 function openWModal_(item){
@@ -694,9 +753,6 @@ function openWModal_(item){
   qs("wmPriceKg").value = (item.price_per_kg!=null && item.price_per_kg!=="" ) ? String(item.price_per_kg) : "";
   qs("wmStepG").value   = item.step_g ? String(item.step_g) : "";
 
-  // reset multi steps on open
-  wmSelectedSteps = new Set();
-
   const fixedOn = !!item.fixed_price;
   qs("wmFixedOn").checked = fixedOn;
 
@@ -706,8 +762,7 @@ function openWModal_(item){
   qs("wmFixedPrice").disabled = !fixedOn;
   qs("wmFixedPrice").value = fixedOn && item.fixed_price_value ? String(item.fixed_price_value) : "";
 
-  // multi presets for step
-  renderPresetRow_("wmStepPresets", (g)=>{ qs("wmStepG").value = String(g); }, true);
+  renderPresetRowMulti_("wmStepPresets", "wmStepG");
 
   qs("wmMsg").innerHTML = "";
   qs("wModal").classList.add("show");
@@ -727,7 +782,8 @@ function validateNum_(v){
   return isFinite(n) ? n : NaN;
 }
 
-async function sendWeighted_(priceKg, stepG, fixedOn, fixedG, fixedPriceValueOrEmpty, finalBarcode){
+// ✅ μία κλήση, step_g = "100,250,500"
+async function sendWeighted_(priceKg, stepCsv, fixedOn, fixedG, fixedPriceValueOrEmpty, finalBarcode){
   qs("wmMsg").innerHTML = `<span class="small">Αποθήκευση…</span>`;
 
   const payload = {
@@ -743,7 +799,7 @@ async function sendWeighted_(priceKg, stepG, fixedOn, fixedG, fixedPriceValueOrE
 
     barcode: finalBarcode,
     price_per_kg: String(Number(priceKg)),
-    step_g: String(Number(stepG)),
+    step_g: String(stepCsv||""),
 
     fixed_price: fixedOn ? "1" : "0",
     fixed_g: fixedOn ? String(Number(fixedG)) : "0",
@@ -755,6 +811,9 @@ async function sendWeighted_(priceKg, stepG, fixedOn, fixedG, fixedPriceValueOrE
   try{
     const res = await jsonp(API, payload);
     if(res && res.ok){
+      qs("wmMsg").innerHTML = `<span class="ok">Προστέθηκε ✔</span>`;
+      if(navigator.vibrate) navigator.vibrate([30,20,30]);
+      setTimeout(closeWModal_, 450);
       return true;
     }
     qs("wmMsg").innerHTML = `<span class="bad">Αποτυχία: ${res && (res.error||res.message) ? (res.error||res.message) : "unknown"}</span>`;
@@ -763,24 +822,6 @@ async function sendWeighted_(priceKg, stepG, fixedOn, fixedG, fixedPriceValueOrE
     qs("wmMsg").innerHTML = `<span class="bad">Server error</span>`;
     return false;
   }
-}
-
-async function sendWeightedMulti_(priceKg, stepsArr, fixedOn, fixedG, fixedPriceValueOrEmpty, finalBarcode){
-  qs("wmSave").disabled = true;
-
-  for(let i=0;i<stepsArr.length;i++){
-    qs("wmMsg").innerHTML = `<span class="small">Αποθήκευση ${i+1}/${stepsArr.length}…</span>`;
-    const ok = await sendWeighted_(priceKg, stepsArr[i], fixedOn, fixedG, fixedPriceValueOrEmpty, finalBarcode);
-    if(!ok){
-      qs("wmSave").disabled = false;
-      return;
-    }
-  }
-
-  qs("wmSave").disabled = false;
-  qs("wmMsg").innerHTML = `<span class="ok">Προστέθηκε ✔</span>`;
-  if(navigator.vibrate) navigator.vibrate([30,20,30]);
-  setTimeout(closeWModal_, 450);
 }
 
 async function submitWeighted_(){
@@ -793,15 +834,15 @@ async function submitWeighted_(){
   const finalBarcode = plu ? plu : manualBarcode;
 
   const priceKgInput = validateNum_(qs("wmPriceKg").value);
-  const stepGInput   = Math.round(validateNum_(qs("wmStepG").value));
-
   const fixedG  = Math.round(validateNum_(qs("wmFixedG").value));
   const fixedPriceStr = qs("wmFixedPrice").value.trim();
   const fixedPriceValue = validateNum_(fixedPriceStr);
 
   const stepsArr = (wmSelectedSteps && wmSelectedSteps.size)
     ? Array.from(wmSelectedSteps).sort((a,b)=>a-b)
-    : (stepGInput > 0 ? [stepGInput] : []);
+    : parseCsvNums_(qs("wmStepG").value);
+
+  const stepCsv = stepsArr.join(",");
 
   if(fixedOn){
     if(!(fixedG > 0)){
@@ -816,9 +857,8 @@ async function submitWeighted_(){
         qs("wmMsg").innerHTML = `<span class="bad">Fixed price πρέπει να είναι &gt; 0.</span>`;
         return;
       }
-      // fixed price only -> compute €/kg and step = fixed_g
       const impliedPriceKg = fixedPriceValue / (fixedG/1000);
-      await sendWeightedMulti_(impliedPriceKg, [fixedG], true, fixedG, fixedPriceValue, finalBarcode);
+      await sendWeighted_(impliedPriceKg, String(fixedG), true, fixedG, fixedPriceValue, finalBarcode);
       return;
     }
 
@@ -826,12 +866,12 @@ async function submitWeighted_(){
       qs("wmMsg").innerHTML = `<span class="bad">Βάλε τιμή €/kg &gt; 0.</span>`;
       return;
     }
-    if(!stepsArr.length){
+    if(!stepCsv){
       qs("wmMsg").innerHTML = `<span class="bad">Διάλεξε τουλάχιστον ένα βήμα (g).</span>`;
       return;
     }
 
-    await sendWeightedMulti_(priceKgInput, stepsArr, true, fixedG, "", finalBarcode);
+    await sendWeighted_(priceKgInput, stepCsv, true, fixedG, "", finalBarcode);
     return;
   }
 
@@ -839,12 +879,12 @@ async function submitWeighted_(){
     qs("wmMsg").innerHTML = `<span class="bad">Βάλε τιμή €/kg &gt; 0.</span>`;
     return;
   }
-  if(!stepsArr.length){
+  if(!stepCsv){
     qs("wmMsg").innerHTML = `<span class="bad">Διάλεξε τουλάχιστον ένα βήμα (g).</span>`;
     return;
   }
 
-  await sendWeightedMulti_(priceKgInput, stepsArr, false, 0, "", finalBarcode);
+  await sendWeighted_(priceKgInput, stepCsv, false, 0, "", finalBarcode);
 }
 
 function renderWGrid_(items){
@@ -896,9 +936,7 @@ function renderWGrid_(items){
 async function loadWeighted_(initial=false){
   const q = (qs("wq").value||"").trim();
 
-  // ✅ store_type filter: dropdown value or fallback to storeTypeFromServer
   const store_type = (qs("wStoreType").value || storeTypeFromServer || "").trim();
-
   const category = qs("wCategory").value || "";
   const subcategory = qs("wSubcategory").value || "";
 
@@ -915,7 +953,6 @@ async function loadWeighted_(initial=false){
     wMetaCache = res.meta || {store_types:[], categories:[], subcategories:{}};
     wItemsCache = res.items || [];
 
-    // render meta always (so dropdowns match selected store_type)
     renderWMeta_(true);
 
     qs("wMeta").innerHTML = `<span class="small">Βρέθηκαν: <b>${wItemsCache.length}</b></span>`;
@@ -923,6 +960,95 @@ async function loadWeighted_(initial=false){
 
   }catch(e){
     qs("wMeta").innerHTML = `<span class="bad">Server error</span>`;
+  }
+}
+
+/* ===== NEW PRODUCT (WEIGHTED_MASTER) ===== */
+function openNWModal_(){
+  // store types: προτεραιότητα meta.store_types, αλλιώς τα TYPES
+  const opts = (wMetaCache && wMetaCache.store_types && wMetaCache.store_types.length)
+    ? wMetaCache.store_types
+    : TYPES.map(x=>x.id);
+
+  const sel = qs("nwStoreType");
+  sel.innerHTML = `<option value="">(auto: ${storeTypeFromServer || "—"})</option>` +
+    opts.map(v=>`<option value="${v}">${v}</option>`).join("");
+
+  // default: current weighted filter or store type from server
+  sel.value = qs("wStoreType").value || storeTypeFromServer || "";
+
+  qs("nwCategory").value = qs("wCategory").value || "";
+  qs("nwSubcategory").value = qs("wSubcategory").value || "";
+  qs("nwBarcode").value = "";
+  qs("nwName").value = "";
+  qs("nwPhoto").value = "";
+  qs("nwMsg").innerHTML = "";
+
+  qs("nwModal").classList.add("show");
+  qs("nwModal").setAttribute("aria-hidden","false");
+  setTimeout(()=>qs("nwName").focus(), 50);
+}
+function closeNWModal_(){
+  qs("nwModal").classList.remove("show");
+  qs("nwModal").setAttribute("aria-hidden","true");
+}
+
+async function saveNewWeightedProduct_(){
+  const st = String(qs("nwStoreType").value || storeTypeFromServer || "").trim();
+  const category = String(qs("nwCategory").value||"").trim();
+  const subcategory = String(qs("nwSubcategory").value||"").trim();
+  const name = String(qs("nwName").value||"").trim();
+  const barcode = String(qs("nwBarcode").value||"").trim();
+  const photo_url = String(qs("nwPhoto").value||"").trim();
+
+  if(!name){
+    qs("nwMsg").innerHTML = `<span class="bad">Βάλε όνομα προϊόντος.</span>`;
+    return;
+  }
+  if(!category){
+    qs("nwMsg").innerHTML = `<span class="bad">Βάλε κατηγορία.</span>`;
+    return;
+  }
+
+  qs("nwMsg").innerHTML = `<span class="small">Προσθήκη…</span>`;
+  try{
+    const res = await jsonp(API, {
+      action:"weighted_master_add",
+      store_id, token,
+      store_type: st,
+      category, subcategory, name, barcode, photo_url
+    });
+
+    if(!res || !res.ok){
+      qs("nwMsg").innerHTML = `<span class="bad">Αποτυχία: ${res && (res.error||res.message) ? (res.error||res.message) : "unknown"}</span>`;
+      return;
+    }
+
+    // refresh list, find the new item, open pricing modal
+    await loadWeighted_(false);
+
+    const pid = String(res.product_id||"").trim();
+    let item = null;
+
+    if(pid){
+      item = (wItemsCache||[]).find(x => String(x.product_id||"").trim() === pid) || null;
+    }
+    if(!item){
+      // fallback match by name+cat
+      item = (wItemsCache||[]).find(x => (x.name||"")===name && (x.category||"")===category) || null;
+    }
+
+    closeNWModal_();
+
+    if(item){
+      openWModal_(item);
+    }else{
+      // αν δεν το βρει, απλά δείχνει μήνυμα
+      qs("wMeta").innerHTML = `<span class="ok">Προστέθηκε στον κατάλογο ✔</span>`;
+    }
+
+  }catch(e){
+    qs("nwMsg").innerHTML = `<span class="bad">Server error</span>`;
   }
 }
 /* =================== /WEIGHTED UI =================== */
@@ -1297,7 +1423,6 @@ qs("wq").addEventListener("input", ()=>{
   __wTimer=setTimeout(()=>loadWeighted_(false), 260);
 });
 qs("wStoreType").addEventListener("change", ()=>{
-  // reset cat/sub for cleaner search
   qs("wCategory").value="";
   qs("wSubcategory").value="";
   loadWeighted_(false);
@@ -1307,6 +1432,13 @@ qs("wCategory").addEventListener("change", ()=>{
   loadWeighted_(false);
 });
 qs("wSubcategory").addEventListener("change", ()=>loadWeighted_(false));
+
+// ✅ Add new weighted product
+qs("btnWAddNew").addEventListener("click", openNWModal_);
+qs("nwCloseTop").addEventListener("click", closeNWModal_);
+qs("nwCancel").addEventListener("click", closeNWModal_);
+qs("nwSave").addEventListener("click", saveNewWeightedProduct_);
+qs("nwModal").addEventListener("click", (e)=>{ if(e.target && e.target.id==="nwModal") closeNWModal_(); });
 
 // scan helpers
 qs("btnMaster").addEventListener("click",()=>{
@@ -1324,7 +1456,7 @@ document.querySelectorAll("button[data-add]").forEach(btn=>{
   });
 });
 
-// modal wiring
+// weighted modal wiring
 qs("wmCloseTop").addEventListener("click", closeWModal_);
 qs("wmCancel").addEventListener("click", closeWModal_);
 qs("wmSave").addEventListener("click", submitWeighted_);
@@ -1342,7 +1474,10 @@ qs("wModal").addEventListener("click", (e)=>{
   if(e.target && e.target.id === "wModal") closeWModal_();
 });
 document.addEventListener("keydown",(e)=>{
-  if(e.key==="Escape" && qs("wModal").classList.contains("show")) closeWModal_();
+  if(e.key==="Escape"){
+    if(qs("wModal").classList.contains("show")) closeWModal_();
+    if(qs("nwModal").classList.contains("show")) closeNWModal_();
+  }
 });
 
 // init
