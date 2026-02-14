@@ -11,8 +11,17 @@
   --b:rgba(255,255,255,.12);--t:rgba(255,255,255,.92);--m:rgba(255,255,255,.68);
   --ok:#37d67a;--bad:#ff4d4d;--w:#fff;--k:#111;
   --camH:170px;
+
+  /* dropdown fix */
+  --dd-bg:#0f1628;
+  --dd-bg2:#0b0f1a;
+  --dd-t:#ffffff;
+  --dd-m:#cfd6e6;
 }
 *{box-sizing:border-box}
+
+/* ✅ forces dark native form controls where supported */
+html{color-scheme:dark}
 body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
 
 header{
@@ -46,8 +55,30 @@ h1{margin:0;font-size:18px;line-height:1.05}
 .row{display:flex;gap:12px;flex-wrap:wrap}
 .col{flex:1;min-width:280px}
 label{display:block;margin:10px 0 6px;font-size:12px;color:var(--m)}
-input,select{width:100%;border-radius:16px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--t);padding:12px;font-size:16px;outline:none}
+
+/* ✅ dropdown/readability fix */
+input,select{
+  width:100%;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.06);
+  color:var(--t);
+  padding:12px;
+  font-size:16px;
+  outline:none;
+}
+/* important: options styling */
+select{
+  color-scheme:dark;
+  background:rgba(255,255,255,.06);
+}
+select option, select optgroup{
+  background:var(--dd-bg);
+  color:var(--dd-t);
+}
+select:focus{border-color:rgba(255,255,255,.30)}
 input:disabled{opacity:.7}
+
 button{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:var(--t);padding:12px 14px;border-radius:16px;font-size:16px;font-weight:800}
 button.primary{background:var(--w);color:var(--k)}
 button:disabled{opacity:.5}
@@ -129,7 +160,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 }
 .modal.show{ display:flex; }
 .modalCard{
-  width:min(720px, 100%);
+  width:min(740px, 100%);
   background:rgba(11,15,26,.96);
   border:1px solid rgba(255,255,255,.18);
   border-radius:20px;
@@ -157,6 +188,25 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 }
 .switchRow input{ width:auto; transform:scale(1.2); }
 .hr{height:1px;background:rgba(255,255,255,.10);margin:12px 0}
+
+/* ✅ preset chips */
+.presetRow{
+  display:flex; gap:8px; flex-wrap:wrap;
+  margin-top:8px;
+}
+.pchip{
+  padding:9px 11px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.06);
+  color:var(--t);
+  font-weight:900;
+  font-size:13px;
+}
+.pchip.on{
+  background:rgba(255,255,255,.18);
+  border-color:rgba(255,255,255,.26);
+}
 </style>
 
 <script>
@@ -297,7 +347,14 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
         <button id="btnSearch" class="primary" type="button">Search</button>
       </div>
 
-      <div class="msg">Φίλτρο τύπου καταστήματος (auto από το κατάστημα — αλλά μπορείς να το αλλάξεις):</div>
+      <label>Τύπος καταστήματος (store type)</label>
+      <div class="btnrow">
+        <select id="storeTypeSelect" class="grow"></select>
+        <button id="btnSetStoreType" type="button">Χρήση</button>
+        <button id="btnResetStoreType" type="button">Reset</button>
+      </div>
+
+      <div class="msg">Μπορείς και multi-select (chips). Ό,τι είναι “on” στέλνεται στο search.</div>
       <div id="typeChips" class="quick"></div>
 
       <div id="results" class="list"></div>
@@ -324,7 +381,19 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
     </div>
 
     <div class="modalBody">
+
       <div class="grid2">
+        <div>
+          <label>PLU (θα γραφτεί στο barcode)</label>
+          <input id="wmPlu" inputmode="numeric" placeholder="π.χ. 4011">
+        </div>
+        <div>
+          <label>Barcode (προαιρετικό)</label>
+          <input id="wmBarcode" placeholder="αν θες EAN/κλπ">
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-top:10px">
         <div>
           <label>Τιμή €/kg</label>
           <input id="wmPriceKg" inputmode="decimal" placeholder="π.χ. 9.90">
@@ -332,6 +401,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
         <div>
           <label>Βήμα (g)</label>
           <input id="wmStepG" inputmode="numeric" placeholder="π.χ. 100">
+          <div id="wmStepPresets" class="presetRow"></div>
         </div>
       </div>
 
@@ -341,7 +411,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
         <input id="wmFixedOn" type="checkbox">
         <div style="min-width:0">
           <div style="font-weight:900">Fixed γραμμάρια</div>
-          <div class="small">Αν είναι ON, ζητάς σταθερή ποσότητα (π.χ. 500g).</div>
+          <div class="small">ON = σταθερή ποσότητα (π.χ. 500g). Μπορείς να δώσεις και fixed price.</div>
         </div>
       </div>
 
@@ -349,10 +419,11 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
         <div>
           <label>Fixed (g)</label>
           <input id="wmFixedG" inputmode="numeric" placeholder="π.χ. 500" disabled>
+          <div id="wmFixedPresets" class="presetRow"></div>
         </div>
         <div>
-          <label>Barcode (προαιρετικό)</label>
-          <input id="wmBarcode" placeholder="…" disabled>
+          <label>Fixed price (προαιρετικό)</label>
+          <input id="wmFixedPrice" inputmode="decimal" placeholder="π.χ. 4.99" disabled>
         </div>
       </div>
 
@@ -430,6 +501,30 @@ function renderTypeChips(){
     });
   });
 }
+
+function renderStoreTypeSelect(defaultType){
+  const sel = qs("storeTypeSelect");
+  if(!sel) return;
+
+  sel.innerHTML = `<option value="">(auto από κατάστημα)</option>` + TYPES.map(t=>{
+    return `<option value="${t.id}">${t.label}</option>`;
+  }).join("");
+
+  if(defaultType) sel.value = defaultType;
+}
+
+function setSelectedTypeSingle(type){
+  type = normType(type);
+  if(!type){
+    selectedTypes = [];
+    saveTypes();
+    renderTypeChips();
+    return;
+  }
+  selectedTypes = [type];
+  saveTypes();
+  renderTypeChips();
+}
 /* ============================================================= */
 
 function setPill(el,text,cls){
@@ -483,6 +578,7 @@ async function storeInfo(){
         selectedTypes = [storeTypeFromServer];
         saveTypes();
       }
+      renderStoreTypeSelect(selectedTypes[0] || storeTypeFromServer || "");
       renderTypeChips();
     }else{
       qs("storeLine").textContent="Μη έγκυρο link.";
@@ -576,6 +672,8 @@ function renderRecent(){
 }
 
 /* ===================== WEIGHTED UI ===================== */
+const PRESETS_G = [100,250,300,400,500,600,700,750,800,900,1000,1500,2000];
+
 let wMetaCache = {categories:[], subcategories:{}};
 let wItemsCache = [];
 let __wTimer = null;
@@ -607,6 +705,21 @@ function updateWSubcategories_(){
   setSelectOptions_(qs("wSubcategory"), subs, "Όλες");
 }
 
+function renderPresetRow_(containerId, onPick){
+  const box = qs(containerId);
+  box.innerHTML = PRESETS_G.map(g=>`<button type="button" class="pchip" data-g="${g}">${g}g</button>`).join("");
+  box.querySelectorAll("button[data-g]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const g = Number(btn.getAttribute("data-g"));
+      if(!g) return;
+      onPick(g);
+      // visual single-select
+      box.querySelectorAll(".pchip").forEach(x=>x.classList.remove("on"));
+      btn.classList.add("on");
+    });
+  });
+}
+
 function openWModal_(item){
   wSelectedItem = item;
 
@@ -616,20 +729,31 @@ function openWModal_(item){
     ` • store: ${storeNameFromServer || store_id}` +
     (storeTypeFromServer ? ` • ${storeTypeFromServer}` : "");
 
+  // PLU + barcode
+  qs("wmPlu").value = "";
+  qs("wmBarcode").value = item.barcode || "";
+
+  // values
   qs("wmPriceKg").value = (item.price_per_kg!=null && item.price_per_kg!=="" ) ? String(item.price_per_kg) : "";
   qs("wmStepG").value   = item.step_g ? String(item.step_g) : "";
-  qs("wmBarcode").value = item.barcode || "";
 
   const fixedOn = !!item.fixed_price;
   qs("wmFixedOn").checked = fixedOn;
+
   qs("wmFixedG").disabled = !fixedOn;
   qs("wmFixedG").value = fixedOn ? String(item.fixed_g||"") : "";
+
+  qs("wmFixedPrice").disabled = !fixedOn;
+  qs("wmFixedPrice").value = fixedOn && item.fixed_price_value ? String(item.fixed_price_value) : "";
+
+  // presets
+  renderPresetRow_("wmStepPresets", (g)=>{ qs("wmStepG").value = String(g); });
+  renderPresetRow_("wmFixedPresets", (g)=>{ if(!qs("wmFixedG").disabled) qs("wmFixedG").value = String(g); });
 
   qs("wmMsg").innerHTML = "";
   qs("wModal").classList.add("show");
   qs("wModal").setAttribute("aria-hidden","false");
 
-  // focus
   setTimeout(()=>qs("wmPriceKg").focus(), 50);
 }
 
@@ -651,6 +775,12 @@ async function submitWeighted_(){
   const stepG   = Math.round(validateNum_(qs("wmStepG").value));
   const fixedOn = !!qs("wmFixedOn").checked;
   const fixedG  = Math.round(validateNum_(qs("wmFixedG").value));
+  const fixedPriceValue = validateNum_(qs("wmFixedPrice").value);
+
+  // PLU -> barcode
+  const plu = String(qs("wmPlu").value||"").trim();
+  const manualBarcode = String(qs("wmBarcode").value||"").trim();
+  const finalBarcode = plu ? plu : manualBarcode;
 
   if(!(priceKg > 0)){
     qs("wmMsg").innerHTML = `<span class="bad">Βάλε τιμή €/kg &gt; 0.</span>`;
@@ -662,6 +792,10 @@ async function submitWeighted_(){
   }
   if(fixedOn && !(fixedG > 0)){
     qs("wmMsg").innerHTML = `<span class="bad">Βάλε fixed (g) &gt; 0 ή κλείσε το Fixed.</span>`;
+    return;
+  }
+  if(fixedOn && qs("wmFixedPrice").value.trim() && !(fixedPriceValue > 0)){
+    qs("wmMsg").innerHTML = `<span class="bad">Fixed price πρέπει να είναι αριθμός &gt; 0 (ή άστο κενό).</span>`;
     return;
   }
 
@@ -677,12 +811,14 @@ async function submitWeighted_(){
     subcategory: wSelectedItem.subcategory || "",
     name: wSelectedItem.name || "",
     photo_url: wSelectedItem.photo_url || "",
-    barcode: wSelectedItem.barcode || "",
 
+    barcode: finalBarcode,                 // ✅ PLU ή barcode
     price_per_kg: String(priceKg),
     step_g: String(stepG),
-    fixed_price: fixedOn ? "1" : "0",
+
+    fixed_price: fixedOn ? "1" : "0",      // ✅ boolean
     fixed_g: fixedOn ? String(fixedG) : "0",
+    fixed_price_value: (fixedOn && qs("wmFixedPrice").value.trim()) ? String(fixedPriceValue) : "" // ✅ optional
   };
 
   try{
@@ -714,7 +850,6 @@ function renderWGrid_(items){
     const fixedTxt = fixed ? `Fix ${it.fixed_g||""}g` : "";
     const photo = it.photo_url ? it.photo_url : "";
 
-    // store item in dataset index
     return `
       <div class="wcard">
         ${photo ? `<img class="wimg" src="${photo}" alt="">` : `<div class="wimg"></div>`}
@@ -1124,6 +1259,17 @@ qs("tabWeighted").addEventListener("click",()=>activateTab("weighted"));
 qs("tabSearch").addEventListener("click",()=>activateTab("search"));
 qs("tabRecent").addEventListener("click",()=>activateTab("recent"));
 
+// store type controls
+qs("btnSetStoreType").addEventListener("click", ()=>{
+  const v = qs("storeTypeSelect").value;
+  setSelectedTypeSingle(v || storeTypeFromServer || "");
+  renderStoreTypeSelect(selectedTypes[0] || "");
+});
+qs("btnResetStoreType").addEventListener("click", ()=>{
+  setSelectedTypeSingle(storeTypeFromServer || "");
+  renderStoreTypeSelect(selectedTypes[0] || "");
+});
+
 // weighted filters
 qs("btnWSearch").addEventListener("click",()=>loadWeighted_(false));
 qs("btnWClear").addEventListener("click",()=>{
@@ -1167,7 +1313,11 @@ qs("wmSave").addEventListener("click", submitWeighted_);
 qs("wmFixedOn").addEventListener("change", ()=>{
   const on = qs("wmFixedOn").checked;
   qs("wmFixedG").disabled = !on;
-  if(!on) qs("wmFixedG").value = "";
+  qs("wmFixedPrice").disabled = !on;
+  if(!on){
+    qs("wmFixedG").value = "";
+    qs("wmFixedPrice").value = "";
+  }
 });
 qs("wModal").addEventListener("click", (e)=>{
   if(e.target && e.target.id === "wModal") closeWModal_();
@@ -1180,6 +1330,7 @@ document.addEventListener("keydown",(e)=>{
 setPill(qs("pillOnline"),"server: …","");
 loadTypes();
 renderTypeChips();
+renderStoreTypeSelect("");
 storeInfo();
 renderRecent();
 if(navigator.onLine) flushPending_();
