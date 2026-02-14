@@ -110,14 +110,55 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 .wbtn button{width:100%;padding:10px 12px;border-radius:14px;font-size:14px}
 
 /* Modal base */
-.modal{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:14px}
+.modal{
+  position:fixed; inset:0; z-index:200;
+  background:rgba(0,0,0,.55);
+  display:none; align-items:center; justify-content:center;
+  padding:14px;
+}
 .modal.show{display:flex}
-.modalCard{width:min(740px,100%);background:rgba(11,15,26,.96);border:1px solid rgba(255,255,255,.18);border-radius:20px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.45)}
-.modalHead{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.12);display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.modal { overscroll-behavior: contain; }
+.modalBody { overscroll-behavior: contain; }
+.modalCard{
+  width:min(740px,100%);
+  max-height:calc(100dvh - 28px);
+  background:rgba(11,15,26,.96);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:20px;
+  min-height:0;
+  overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+  display:flex;
+  flex-direction:column;
+}
+.modalHead{
+  padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,.12);
+  display:flex; gap:10px; align-items:flex-start; justify-content:space-between;
+  flex:0 0 auto;
+  position:sticky; top:0;
+  background:rgba(11,15,26,.98);
+  z-index:2;
+}
 .modalTitle{font-weight:900;font-size:15px;line-height:1.2}
 .modalSub{font-size:12px;color:var(--m);margin-top:3px;line-height:1.25}
-.modalBody{padding:12px 14px}
-.modalFoot{padding:12px 14px;border-top:1px solid rgba(255,255,255,.12);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.modalBody{
+  padding:12px 14px;
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+  flex:1 1 auto;
+  min-height:0;
+}
+.modalFoot{
+  padding:12px 14px;
+  border-top:1px solid rgba(255,255,255,.12);
+  display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;
+  flex:0 0 auto;
+  position:sticky; bottom:0;
+  background:rgba(11,15,26,.98);
+  z-index:2;
+  padding-bottom:calc(12px + env(safe-area-inset-bottom));
+}
 .switchRow{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);border-radius:16px}
 .switchRow input{width:auto;transform:scale(1.2)}
 .hr{height:1px;background:rgba(255,255,255,.10);margin:12px 0}
@@ -244,7 +285,6 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
         <button id="btnWClear" type="button">Clear</button>
       </div>
 
-      <!-- ✅ store_type πριν από κατηγορία -->
       <div class="grid2" style="margin-top:10px">
         <div>
           <label>Τύπος καταστήματος</label>
@@ -303,7 +343,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
   </section>
 </div>
 
-<!-- Weighted Modal (ρύθμιση τιμής/βημάτων) -->
+<!-- Weighted Modal -->
 <div id="wModal" class="modal" aria-hidden="true">
   <div class="modalCard" role="dialog" aria-modal="true">
     <div class="modalHead">
@@ -370,7 +410,7 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
   </div>
 </div>
 
-<!-- ✅ New Weighted Product Modal (προσθήκη στον κατάλογο WEIGHTED_MASTER) -->
+<!-- New Weighted Product Modal -->
 <div id="nwModal" class="modal" aria-hidden="true">
   <div class="modalCard" role="dialog" aria-modal="true">
     <div class="modalHead">
@@ -527,8 +567,32 @@ function jsonp(api,params){
   });
 }
 
+/* ✅ iOS-friendly body lock (σταματάει “πηδήματα” όταν ανοίγει modal) */
+let __lockScrollY = 0;
+function lockBody_(on){
+  const body = document.body;
+  if(on){
+    __lockScrollY = window.scrollY || window.pageYOffset || 0;
+    body.style.position = "fixed";
+    body.style.top = `-${__lockScrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    document.documentElement.style.overflow = "hidden";
+  }else{
+    body.style.position = "";
+    body.style.top = "";
+    body.style.left = "";
+    body.style.right = "";
+    body.style.width = "";
+    document.documentElement.style.overflow = "";
+    window.scrollTo(0, __lockScrollY);
+  }
+}
+
 function setMsg(id,html){ qs(id).innerHTML=html; }
 function safe(v){ return (v??"")==="" ? "" : String(v); }
+
 function fillFromProduct(p){
   qs("barcode").value=safe(p.barcode)||qs("barcode").value;
   qs("internal_code").value=safe(p.internal_code);
@@ -658,7 +722,12 @@ let wItemsCache = [];
 let __wTimer = null;
 
 let wSelectedItem = null;
-let wmSelectedSteps = new Set(); // ✅ multi step selections
+let wmSelectedSteps = new Set();
+
+function truthy1_(v){
+  const s = String(v ?? "").trim().toLowerCase();
+  return v === true || v === 1 || s === "1" || s === "true" || s === "yes";
+}
 
 function setSelectOptions_(sel, options, placeholder, currentValue){
   sel.innerHTML = "";
@@ -679,8 +748,12 @@ function renderWMeta_(preserve=true){
   const curCat  = preserve ? (qs("wCategory").value || "") : "";
   const curSub  = preserve ? (qs("wSubcategory").value || "") : "";
 
+  // ✅ βάζει και το storeTypeFromServer αν λείπει από meta
+  const types = Array.isArray(wMetaCache.store_types) ? [...wMetaCache.store_types] : [];
+  if(storeTypeFromServer && !types.includes(storeTypeFromServer)) types.unshift(storeTypeFromServer);
+
   const autoLabel = storeTypeFromServer ? `(auto: ${storeTypeFromServer})` : "(auto από κατάστημα)";
-  setSelectOptions_(qs("wStoreType"), wMetaCache.store_types, autoLabel, curType);
+  setSelectOptions_(qs("wStoreType"), types, autoLabel, curType);
 
   setSelectOptions_(qs("wCategory"), wMetaCache.categories, "Όλες", curCat);
   updateWSubcategories_(curSub);
@@ -705,7 +778,6 @@ function renderPresetRowMulti_(containerId, inputId){
   const box = qs(containerId);
   const input = qs(inputId);
 
-  // seed from input
   wmSelectedSteps = new Set(parseCsvNums_(input.value));
 
   function sync(){
@@ -729,7 +801,6 @@ function renderPresetRowMulti_(containerId, inputId){
     });
   });
 
-  // manual typing also updates set
   input.addEventListener("input", ()=>{
     wmSelectedSteps = new Set(parseCsvNums_(input.value));
     sync();
@@ -739,42 +810,55 @@ function renderPresetRowMulti_(containerId, inputId){
 }
 
 function openWModal_(item){
-  wSelectedItem = item;
+  lockBody_(true);
 
-  qs("wmTitle").textContent = item.name || "(χωρίς όνομα)";
+  wSelectedItem = item || null;
+  if(!wSelectedItem) return;
+
+  qs("wmTitle").textContent = wSelectedItem.name || "Ζυγιζόμενο";
   qs("wmSub").textContent =
-    `${item.category||""}${item.subcategory ? " • "+item.subcategory : ""}` +
-    ` • store: ${storeNameFromServer || store_id}` +
-    (storeTypeFromServer ? ` • ${storeTypeFromServer}` : "");
+    (wSelectedItem.store_type ? (wSelectedItem.store_type + " • ") : "") +
+    (wSelectedItem.category || "") +
+    (wSelectedItem.subcategory ? (" • " + wSelectedItem.subcategory) : "");
 
   qs("wmPlu").value = "";
-  qs("wmBarcode").value = item.barcode || "";
+  qs("wmBarcode").value = safe(wSelectedItem.barcode);
 
-  qs("wmPriceKg").value = (item.price_per_kg!=null && item.price_per_kg!=="" ) ? String(item.price_per_kg) : "";
-  qs("wmStepG").value   = item.step_g ? String(item.step_g) : "";
+  qs("wmPriceKg").value = (wSelectedItem.price_per_kg != null && wSelectedItem.price_per_kg !== "")
+    ? String(wSelectedItem.price_per_kg)
+    : "";
 
-  const fixedOn = !!item.fixed_price;
-  qs("wmFixedOn").checked = fixedOn;
+  qs("wmStepG").value = safe(wSelectedItem.step_g);
 
-  qs("wmFixedG").disabled = !fixedOn;
-  qs("wmFixedG").value = fixedOn ? String(item.fixed_g||"") : "";
+  const fixed = truthy1_(wSelectedItem.fixed_price);
+  qs("wmFixedOn").checked = fixed;
 
-  qs("wmFixedPrice").disabled = !fixedOn;
-  qs("wmFixedPrice").value = fixedOn && item.fixed_price_value ? String(item.fixed_price_value) : "";
+  qs("wmFixedG").disabled = !fixed;
+  qs("wmFixedPrice").disabled = !fixed;
+
+  qs("wmFixedG").value = fixed ? safe(wSelectedItem.fixed_g) : "";
+  qs("wmFixedPrice").value = fixed ? safe(wSelectedItem.fixed_price_value) : "";
+
+  qs("wmMsg").innerHTML = "";
 
   renderPresetRowMulti_("wmStepPresets", "wmStepG");
 
-  qs("wmMsg").innerHTML = "";
   qs("wModal").classList.add("show");
   qs("wModal").setAttribute("aria-hidden","false");
 
-  setTimeout(()=>qs("wmPriceKg").focus(), 50);
+  requestAnimationFrame(()=>{
+    const body = qs("wModal").querySelector(".modalBody");
+    if(body) body.scrollTop = 0;
+  });
+
+  setTimeout(()=>qs("wmPriceKg").focus(), 60);
 }
 
 function closeWModal_(){
   qs("wModal").classList.remove("show");
   qs("wModal").setAttribute("aria-hidden","true");
   wSelectedItem = null;
+  lockBody_(false);
 }
 
 function validateNum_(v){
@@ -782,7 +866,6 @@ function validateNum_(v){
   return isFinite(n) ? n : NaN;
 }
 
-// ✅ μία κλήση, step_g = "100,250,500"
 async function sendWeighted_(priceKg, stepCsv, fixedOn, fixedG, fixedPriceValueOrEmpty, finalBarcode){
   qs("wmMsg").innerHTML = `<span class="small">Αποθήκευση…</span>`;
 
@@ -895,8 +978,8 @@ function renderWGrid_(items){
   }
 
   box.innerHTML = items.map((it, idx)=>{
-    const fixed = !!it.fixed_price;
-    const price = (it.price_per_kg!=null && it.price_per_kg!==0) ? Number(it.price_per_kg).toFixed(2) : "";
+    const fixed = truthy1_(it.fixed_price);
+    const price = (it.price_per_kg!=null && it.price_per_kg!=="" && Number(it.price_per_kg)!==0) ? Number(it.price_per_kg).toFixed(2) : "";
     const step  = it.step_g ? `${it.step_g}g` : "";
     const fixedTxt = fixed ? `Fix ${it.fixed_g||""}g` : "";
     const photo = it.photo_url ? it.photo_url : "";
@@ -965,32 +1048,44 @@ async function loadWeighted_(initial=false){
 
 /* ===== NEW PRODUCT (WEIGHTED_MASTER) ===== */
 function openNWModal_(){
-  // store types: προτεραιότητα meta.store_types, αλλιώς τα TYPES
-  const opts = (wMetaCache && wMetaCache.store_types && wMetaCache.store_types.length)
+  lockBody_(true);
+
+  const opts = (wMetaCache && Array.isArray(wMetaCache.store_types) && wMetaCache.store_types.length)
     ? wMetaCache.store_types
     : TYPES.map(x=>x.id);
 
-  const sel = qs("nwStoreType");
-  sel.innerHTML = `<option value="">(auto: ${storeTypeFromServer || "—"})</option>` +
-    opts.map(v=>`<option value="${v}">${v}</option>`).join("");
+  setSelectOptions_(
+    qs("nwStoreType"),
+    opts,
+    storeTypeFromServer ? `(auto: ${storeTypeFromServer})` : "(auto από κατάστημα)",
+    ""
+  );
 
-  // default: current weighted filter or store type from server
-  sel.value = qs("wStoreType").value || storeTypeFromServer || "";
-
-  qs("nwCategory").value = qs("wCategory").value || "";
-  qs("nwSubcategory").value = qs("wSubcategory").value || "";
+  qs("nwCategory").value = "";
+  qs("nwSubcategory").value = "";
   qs("nwBarcode").value = "";
   qs("nwName").value = "";
   qs("nwPhoto").value = "";
   qs("nwMsg").innerHTML = "";
 
+  // ✅ κρατάει αυτό που διάλεξες στο weighted φίλτρο
+  qs("nwStoreType").value = qs("wStoreType").value || storeTypeFromServer || "";
+
   qs("nwModal").classList.add("show");
   qs("nwModal").setAttribute("aria-hidden","false");
-  setTimeout(()=>qs("nwName").focus(), 50);
+
+  requestAnimationFrame(()=>{
+    const body = qs("nwModal").querySelector(".modalBody");
+    if(body) body.scrollTop = 0;
+  });
+
+  setTimeout(()=>qs("nwName").focus(), 60);
 }
+
 function closeNWModal_(){
   qs("nwModal").classList.remove("show");
   qs("nwModal").setAttribute("aria-hidden","true");
+  lockBody_(false);
 }
 
 async function saveNewWeightedProduct_(){
@@ -1024,7 +1119,6 @@ async function saveNewWeightedProduct_(){
       return;
     }
 
-    // refresh list, find the new item, open pricing modal
     await loadWeighted_(false);
 
     const pid = String(res.product_id||"").trim();
@@ -1034,7 +1128,6 @@ async function saveNewWeightedProduct_(){
       item = (wItemsCache||[]).find(x => String(x.product_id||"").trim() === pid) || null;
     }
     if(!item){
-      // fallback match by name+cat
       item = (wItemsCache||[]).find(x => (x.name||"")===name && (x.category||"")===category) || null;
     }
 
@@ -1043,7 +1136,6 @@ async function saveNewWeightedProduct_(){
     if(item){
       openWModal_(item);
     }else{
-      // αν δεν το βρει, απλά δείχνει μήνυμα
       qs("wMeta").innerHTML = `<span class="ok">Προστέθηκε στον κατάλογο ✔</span>`;
     }
 
@@ -1371,7 +1463,7 @@ function activateTab(tab){
   if(tab==="weighted") loadWeighted_(true);
 }
 
-// wiring scan
+/* wiring */
 qs("btnLookup").addEventListener("click",lookup);
 qs("barcode").addEventListener("input",()=>{
   const b=qs("barcode").value.trim();
@@ -1388,17 +1480,14 @@ qs("btnSave").addEventListener("click",save);
 qs("btnStart").addEventListener("click",startCam);
 qs("btnStop").addEventListener("click",stopCam);
 
-// search wiring
 qs("btnSearch").addEventListener("click",()=>doSearch(true));
 qs("q").addEventListener("input",()=>doSearch(false));
 
-// tabs
 qs("tabScan").addEventListener("click",()=>activateTab("scan"));
 qs("tabWeighted").addEventListener("click",()=>activateTab("weighted"));
 qs("tabSearch").addEventListener("click",()=>activateTab("search"));
 qs("tabRecent").addEventListener("click",()=>activateTab("recent"));
 
-// store type controls
 qs("btnSetStoreType").addEventListener("click", ()=>{
   const v = qs("storeTypeSelect").value;
   setSelectedTypeSingle(v || storeTypeFromServer || "");
@@ -1409,7 +1498,6 @@ qs("btnResetStoreType").addEventListener("click", ()=>{
   renderStoreTypeSelect(selectedTypes[0] || "");
 });
 
-// ✅ weighted controls
 qs("btnWSearch").addEventListener("click",()=>loadWeighted_(false));
 qs("btnWClear").addEventListener("click",()=>{
   qs("wq").value="";
@@ -1433,14 +1521,12 @@ qs("wCategory").addEventListener("change", ()=>{
 });
 qs("wSubcategory").addEventListener("change", ()=>loadWeighted_(false));
 
-// ✅ Add new weighted product
 qs("btnWAddNew").addEventListener("click", openNWModal_);
 qs("nwCloseTop").addEventListener("click", closeNWModal_);
 qs("nwCancel").addEventListener("click", closeNWModal_);
 qs("nwSave").addEventListener("click", saveNewWeightedProduct_);
 qs("nwModal").addEventListener("click", (e)=>{ if(e.target && e.target.id==="nwModal") closeNWModal_(); });
 
-// scan helpers
 qs("btnMaster").addEventListener("click",()=>{
   const mp=qs("master_price").value.trim();
   if(mp) qs("price").value=mp;
@@ -1456,7 +1542,6 @@ document.querySelectorAll("button[data-add]").forEach(btn=>{
   });
 });
 
-// weighted modal wiring
 qs("wmCloseTop").addEventListener("click", closeWModal_);
 qs("wmCancel").addEventListener("click", closeWModal_);
 qs("wmSave").addEventListener("click", submitWeighted_);
