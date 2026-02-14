@@ -10,20 +10,40 @@
   --bg:#0b0f1a;--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.09);
   --b:rgba(255,255,255,.12);--t:rgba(255,255,255,.92);--m:rgba(255,255,255,.68);
   --ok:#37d67a;--bad:#ff4d4d;--w:#fff;--k:#111;
-  --camH:200px; /* ✅ μικρότερη κάμερα */
+  --camH:170px;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-header{position:sticky;top:0;z-index:50;background:rgba(11,15,26,.78);backdrop-filter:blur(10px);border-bottom:1px solid var(--b);padding:14px}
-.h{max-width:980px;margin:0 auto;display:flex;gap:12px;align-items:center;justify-content:space-between}
-.brand{display:flex;gap:10px;align-items:center;min-width:0}
-.logo{width:36px;height:36px;border-radius:14px;background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,.04));border:1px solid var(--b)}
-h1{margin:0;font-size:22px;line-height:1.1}
-.sub{margin-top:2px;font-size:12px;color:var(--m);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62vw}
-.pills{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.pill{padding:8px 10px;border-radius:999px;background:rgba(255,255,255,.10);border:1px solid var(--b);font-size:12px;color:var(--m);white-space:nowrap}
+
+/* ✅ πιο “λεπτό” header */
+header{
+  position:sticky;top:0;z-index:50;
+  background:rgba(11,15,26,.78);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--b);
+  padding:10px 12px;
+}
+.h{max-width:980px;margin:0 auto;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.brand{display:flex;gap:8px;align-items:center;min-width:0}
+.logo{width:28px;height:28px;border-radius:12px;background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,.04));border:1px solid var(--b)}
+h1{margin:0;font-size:18px;line-height:1.05}
+.sub{
+  margin-top:2px;font-size:11px;color:var(--m);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56vw
+}
+
+/* ✅ μικρότερα pills server/camera */
+.pills{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.pill{
+  padding:6px 8px;border-radius:999px;
+  background:rgba(255,255,255,.10);
+  border:1px solid var(--b);
+  font-size:11px;color:var(--m);
+  white-space:nowrap;line-height:1;
+}
 .pill.ok{color:var(--ok)} .pill.bad{color:var(--bad)}
-.wrap{max-width:980px;margin:0 auto;padding:12px 12px calc(78px + env(safe-area-inset-bottom))}
+
+.wrap{max-width:980px;margin:0 auto;padding:10px 12px calc(78px + env(safe-area-inset-bottom))}
 .card{background:var(--card);border:1px solid var(--b);border-radius:18px;padding:12px;margin:10px 0}
 .row{display:flex;gap:12px;flex-wrap:wrap}
 .col{flex:1;min-width:280px}
@@ -34,16 +54,9 @@ button{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);c
 button.primary{background:var(--w);color:var(--k)}
 button:disabled{opacity:.5}
 .btnrow{display:flex;gap:10px;flex-wrap:wrap}
-.btnrow.compact button{padding:10px 12px;font-size:15px;border-radius:14px} /* ✅ μικρότερα κουμπιά */
+.btnrow.compact button{padding:10px 12px;font-size:15px;border-radius:14px}
 .grow{flex:1;min-width:140px}
-video{
-  width:100%;
-  height:var(--camH);               /* ✅ fixed height ώστε να μην τρώει την οθόνη */
-  max-height:var(--camH);
-  border-radius:18px;
-  background:#000;
-  object-fit:cover;
-}
+video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;background:#000;object-fit:cover}
 .msg{margin-top:8px;font-size:13px;color:var(--m);line-height:1.35}
 .msg .ok{color:var(--ok);font-weight:800} .msg .bad{color:var(--bad);font-weight:800}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -59,18 +72,17 @@ video{
 .small{font-size:12px;color:var(--m);line-height:1.35}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;word-break:break-all;font-size:12px;color:var(--m)}
 
-/* ✅ Mobile tuning: πιο σφιχτό layout + ακόμη πιο μικρή κάμερα */
+/* ✅ mobile ακόμα πιο σφιχτό */
 @media(max-width:820px){
-  :root{--camH:170px;}
+  :root{--camH:160px;}
   .grid2{grid-template-columns:1fr}
-  .sub{max-width:50vw}
+  .sub{max-width:52vw}
   .card{padding:10px;margin:8px 0}
   label{margin:8px 0 6px}
   .msg{margin-top:6px}
 }
 </style>
 
-<!-- ✅ ZXing UMD fallback loader (loads ONLY when BarcodeDetector is missing, iOS/Safari) -->
 <script>
 (function(){
   if ("BarcodeDetector" in window) return;
@@ -82,8 +94,8 @@ video{
   document.head.appendChild(s);
 })();
 </script>
-
 </head>
+
 <body>
 <header>
   <div class="h">
@@ -102,7 +114,6 @@ video{
 </header>
 
 <div class="wrap">
-  <!-- ✅ μικρότερο intro card για να κερδίσουμε χώρο -->
   <div class="card" style="padding:10px;margin-top:8px">
     <div class="small">Myscanner</div>
     <div class="mono">Scan</div>
@@ -111,7 +122,6 @@ video{
   <section id="paneScan">
     <div class="card">
       <div class="row">
-        <!-- LEFT: camera -->
         <div class="col camcol">
           <div class="btnrow compact">
             <button id="btnStart" class="primary grow" type="button">Start camera</button>
@@ -126,8 +136,8 @@ video{
           <div id="camStatus" class="msg"></div>
         </div>
 
-        <!-- RIGHT: form -->
         <div class="col formcol">
+          <!-- ✅ 1) Barcode πρώτο -->
           <label>Barcode</label>
           <div class="btnrow">
             <input id="barcode" class="grow" placeholder="σκάναρε ή γράψε" inputmode="numeric">
@@ -135,11 +145,13 @@ video{
             <button id="btnClear" type="button">Clear</button>
           </div>
 
-          <label>Internal code</label>
-          <input id="internal_code" placeholder="(από κατάλογο)">
-
+          <!-- ✅ 2) Περιγραφή δεύτερη -->
           <label>Περιγραφή</label>
           <input id="product_name" placeholder="(από κατάλογο ή χειροκίνητα)">
+
+          <!-- ✅ 3) Internal code κάτω από περιγραφή -->
+          <label>Internal code</label>
+          <input id="internal_code" placeholder="(από κατάλογο)">
 
           <div class="grid2">
             <div><label>Κατηγορία</label><input id="category" placeholder="(από κατάλογο)"></div>
@@ -238,7 +250,6 @@ function loadTypes(){
   if(!Array.isArray(selectedTypes)) selectedTypes=[];
   selectedTypes = selectedTypes.map(x=>normType(x)).filter(Boolean);
 }
-
 function saveTypes(){ try{ localStorage.setItem(TYPES_KEY, JSON.stringify(selectedTypes)); }catch(e){} }
 
 function renderTypeChips(){
@@ -556,8 +567,8 @@ async function doSearch(force=false){
         const pr = btn.getAttribute("data-price") || "";
 
         qs("barcode").value = b;
-        qs("internal_code").value = ic;
         qs("product_name").value = nm;
+        qs("internal_code").value = ic;
         qs("category").value = ct;
         qs("unit").value = un;
         qs("master_price").value = pr;
@@ -600,7 +611,6 @@ function handleDetectedCode_(code){
     lastDetected=code; lastAt=t;
     qs("barcode").value=code;
     scheduleLookup();
-    // ✅ φέρνει το barcode στο οπτικό πεδίο (σε περίπτωση μικρής οθόνης)
     qs("barcode").scrollIntoView({behavior:"smooth", block:"center"});
     if(navigator.vibrate) navigator.vibrate(20);
   }
@@ -733,7 +743,7 @@ qs("barcode").addEventListener("input",()=>{
 });
 
 qs("btnClear").addEventListener("click",()=>{
-  ["barcode","internal_code","product_name","category","unit","master_price","price"].forEach(id=>qs(id).value="");
+  ["barcode","product_name","internal_code","category","unit","master_price","price"].forEach(id=>qs(id).value="");
   setMsg("formStatus","");
   lastDetected="";
   isNewProduct=false;
