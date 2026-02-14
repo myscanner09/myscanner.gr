@@ -6,7 +6,12 @@
 <title>myscanner • Scan</title>
 <meta name="theme-color" content="#0b0f1a">
 <style>
-:root{--bg:#0b0f1a;--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.09);--b:rgba(255,255,255,.12);--t:rgba(255,255,255,.92);--m:rgba(255,255,255,.68);--ok:#37d67a;--bad:#ff4d4d;--w:#fff;--k:#111}
+:root{
+  --bg:#0b0f1a;--card:rgba(255,255,255,.06);--card2:rgba(255,255,255,.09);
+  --b:rgba(255,255,255,.12);--t:rgba(255,255,255,.92);--m:rgba(255,255,255,.68);
+  --ok:#37d67a;--bad:#ff4d4d;--w:#fff;--k:#111;
+  --camH:200px; /* ✅ μικρότερη κάμερα */
+}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
 header{position:sticky;top:0;z-index:50;background:rgba(11,15,26,.78);backdrop-filter:blur(10px);border-bottom:1px solid var(--b);padding:14px}
@@ -18,8 +23,8 @@ h1{margin:0;font-size:22px;line-height:1.1}
 .pills{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .pill{padding:8px 10px;border-radius:999px;background:rgba(255,255,255,.10);border:1px solid var(--b);font-size:12px;color:var(--m);white-space:nowrap}
 .pill.ok{color:var(--ok)} .pill.bad{color:var(--bad)}
-.wrap{max-width:980px;margin:0 auto;padding:14px 14px calc(84px + env(safe-area-inset-bottom))}
-.card{background:var(--card);border:1px solid var(--b);border-radius:18px;padding:14px;margin:12px 0}
+.wrap{max-width:980px;margin:0 auto;padding:12px 12px calc(78px + env(safe-area-inset-bottom))}
+.card{background:var(--card);border:1px solid var(--b);border-radius:18px;padding:12px;margin:10px 0}
 .row{display:flex;gap:12px;flex-wrap:wrap}
 .col{flex:1;min-width:280px}
 label{display:block;margin:10px 0 6px;font-size:12px;color:var(--m)}
@@ -29,12 +34,19 @@ button{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);c
 button.primary{background:var(--w);color:var(--k)}
 button:disabled{opacity:.5}
 .btnrow{display:flex;gap:10px;flex-wrap:wrap}
-.grow{flex:1;min-width:160px}
-video{width:100%;max-height:360px;border-radius:18px;background:#000}
-.msg{margin-top:10px;font-size:13px;color:var(--m);line-height:1.35}
+.btnrow.compact button{padding:10px 12px;font-size:15px;border-radius:14px} /* ✅ μικρότερα κουμπιά */
+.grow{flex:1;min-width:140px}
+video{
+  width:100%;
+  height:var(--camH);               /* ✅ fixed height ώστε να μην τρώει την οθόνη */
+  max-height:var(--camH);
+  border-radius:18px;
+  background:#000;
+  object-fit:cover;
+}
+.msg{margin-top:8px;font-size:13px;color:var(--m);line-height:1.35}
 .msg .ok{color:var(--ok);font-weight:800} .msg .bad{color:var(--bad);font-weight:800}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:820px){.grid2{grid-template-columns:1fr}.sub{max-width:50vw}}
 .quick{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
 .quick button{padding:10px 12px;font-size:14px;border-radius:14px}
 .bottom{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(11,15,26,.82);border-top:1px solid var(--b);backdrop-filter:blur(10px);z-index:60}
@@ -46,14 +58,23 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
 .item b{display:block;font-size:15px;margin-bottom:4px}
 .small{font-size:12px;color:var(--m);line-height:1.35}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;word-break:break-all;font-size:12px;color:var(--m)}
+
+/* ✅ Mobile tuning: πιο σφιχτό layout + ακόμη πιο μικρή κάμερα */
+@media(max-width:820px){
+  :root{--camH:170px;}
+  .grid2{grid-template-columns:1fr}
+  .sub{max-width:50vw}
+  .card{padding:10px;margin:8px 0}
+  label{margin:8px 0 6px}
+  .msg{margin-top:6px}
+}
 </style>
 
 <!-- ✅ ZXing UMD fallback loader (loads ONLY when BarcodeDetector is missing, iOS/Safari) -->
 <script>
 (function(){
-  if ("BarcodeDetector" in window) return; // Android/Chrome: native path, no extra load
+  if ("BarcodeDetector" in window) return;
   var s = document.createElement("script");
-  // IMPORTANT: UMD build so we get window.ZXing in Safari
   s.src = "https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js";
   s.async = true;
   s.crossOrigin = "anonymous";
@@ -81,7 +102,8 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
 </header>
 
 <div class="wrap">
-  <div class="card">
+  <!-- ✅ μικρότερο intro card για να κερδίσουμε χώρο -->
+  <div class="card" style="padding:10px;margin-top:8px">
     <div class="small">Myscanner</div>
     <div class="mono">Scan</div>
   </div>
@@ -89,19 +111,23 @@ video{width:100%;max-height:360px;border-radius:18px;background:#000}
   <section id="paneScan">
     <div class="card">
       <div class="row">
-        <div class="col">
-          <div class="btnrow">
+        <!-- LEFT: camera -->
+        <div class="col camcol">
+          <div class="btnrow compact">
             <button id="btnStart" class="primary grow" type="button">Start camera</button>
             <button id="btnStop" class="grow" type="button" disabled>Stop</button>
           </div>
-          <div class="msg">Μόλις βρει barcode, γεμίζει <b>αυτόματα</b> το πεδίο και κάνει lookup.</div>
-          <div style="margin-top:12px">
+
+          <div style="margin-top:10px">
             <video id="video" playsinline muted></video>
           </div>
+
+          <div class="msg">Μόλις βρει barcode, γεμίζει <b>αυτόματα</b> το πεδίο και κάνει lookup.</div>
           <div id="camStatus" class="msg"></div>
         </div>
 
-        <div class="col">
+        <!-- RIGHT: form -->
+        <div class="col formcol">
           <label>Barcode</label>
           <div class="btnrow">
             <input id="barcode" class="grow" placeholder="σκάναρε ή γράψε" inputmode="numeric">
@@ -574,6 +600,8 @@ function handleDetectedCode_(code){
     lastDetected=code; lastAt=t;
     qs("barcode").value=code;
     scheduleLookup();
+    // ✅ φέρνει το barcode στο οπτικό πεδίο (σε περίπτωση μικρής οθόνης)
+    qs("barcode").scrollIntoView({behavior:"smooth", block:"center"});
     if(navigator.vibrate) navigator.vibrate(20);
   }
 }
@@ -590,7 +618,6 @@ async function startCam(){
     return;
   }
 
-  // cleanup previous
   stopCam();
 
   qs("camStatus").innerHTML='<span class="small">Ανοίγω κάμερα…</span>';
@@ -601,7 +628,6 @@ async function startCam(){
   v.muted = true;
 
   try{
-    // ✅ Android/Chrome path (native BarcodeDetector) — no change in behavior
     if("BarcodeDetector" in window){
       detector = new BarcodeDetector({formats:["ean_13","ean_8","code_128","upc_a","upc_e"]});
 
@@ -623,7 +649,6 @@ async function startCam(){
       return;
     }
 
-    // ✅ iOS/Safari path (ZXing UMD)
     await waitForZXing_();
 
     zxingReader = new window.ZXing.BrowserMultiFormatReader();
@@ -634,24 +659,17 @@ async function startCam(){
     setPill(qs("pillCam"),"camera: on (ios)","ok");
     qs("camStatus").innerHTML='<span class="ok">Κάμερα ενεργή (iOS). Σκάναρε barcode.</span>';
 
-    // ZXing will handle getUserMedia internally + continuous decode
-    // NOTE: This is the reliable API for script-tag usage.
     zxingReader.decodeFromVideoDevice(null, v, (result, err) => {
       if(!scanning) return;
 
       if(result){
-        // result.getText() exists on ZXing result
         const text = (typeof result.getText === "function") ? result.getText() : (result.text || "");
         handleDetectedCode_(text);
         return;
       }
-
-      // Ignore "NotFoundException" (normal while scanning)
       if(err){
         const name = err.name || "";
         if(name === "NotFoundException") return;
-        // If you want to see real errors uncomment:
-        // qs("camStatus").innerHTML = '<span class="bad">'+(err.message||String(err))+'</span>';
       }
     });
 
@@ -678,12 +696,7 @@ async function tickNative_(){
 function stopCam(){
   scanning=false;
 
-  try{
-    if(zxingReader){
-      // stops camera in ZXing mode
-      zxingReader.reset();
-    }
-  }catch(e){}
+  try{ if(zxingReader){ zxingReader.reset(); } }catch(e){}
   zxingReader=null;
 
   try{ if(detector) detector=null; }catch(e){}
