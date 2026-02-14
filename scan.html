@@ -118,6 +118,45 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 .badge.ok{ color:var(--ok); }
 .wbtn{ margin-top:auto; }
 .wbtn button{ width:100%; padding:10px 12px; border-radius:14px; font-size:14px; }
+
+/* ===== Weighted modal ===== */
+.modal{
+  position:fixed; inset:0; z-index:200;
+  background:rgba(0,0,0,.55);
+  display:none;
+  align-items:center; justify-content:center;
+  padding:14px;
+}
+.modal.show{ display:flex; }
+.modalCard{
+  width:min(720px, 100%);
+  background:rgba(11,15,26,.96);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:20px;
+  overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+.modalHead{
+  padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,.12);
+  display:flex; gap:10px; align-items:flex-start; justify-content:space-between;
+}
+.modalTitle{ font-weight:900; font-size:15px; line-height:1.2; }
+.modalSub{ font-size:12px; color:var(--m); margin-top:3px; line-height:1.25; }
+.modalBody{ padding:12px 14px; }
+.modalFoot{
+  padding:12px 14px;
+  border-top:1px solid rgba(255,255,255,.12);
+  display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;
+}
+.switchRow{
+  display:flex; gap:10px; align-items:center;
+  padding:10px 12px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06);
+  border-radius:16px;
+}
+.switchRow input{ width:auto; transform:scale(1.2); }
+.hr{height:1px;background:rgba(255,255,255,.10);margin:12px 0}
 </style>
 
 <script>
@@ -273,6 +312,60 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
   </section>
 </div>
 
+<!-- ===== Weighted Modal ===== -->
+<div id="wModal" class="modal" aria-hidden="true">
+  <div class="modalCard" role="dialog" aria-modal="true">
+    <div class="modalHead">
+      <div style="min-width:0">
+        <div id="wmTitle" class="modalTitle">Ζυγιζόμενο</div>
+        <div id="wmSub" class="modalSub">…</div>
+      </div>
+      <button id="wmCloseTop" type="button">✕</button>
+    </div>
+
+    <div class="modalBody">
+      <div class="grid2">
+        <div>
+          <label>Τιμή €/kg</label>
+          <input id="wmPriceKg" inputmode="decimal" placeholder="π.χ. 9.90">
+        </div>
+        <div>
+          <label>Βήμα (g)</label>
+          <input id="wmStepG" inputmode="numeric" placeholder="π.χ. 100">
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="switchRow">
+        <input id="wmFixedOn" type="checkbox">
+        <div style="min-width:0">
+          <div style="font-weight:900">Fixed γραμμάρια</div>
+          <div class="small">Αν είναι ON, ζητάς σταθερή ποσότητα (π.χ. 500g).</div>
+        </div>
+      </div>
+
+      <div class="grid2" style="margin-top:10px">
+        <div>
+          <label>Fixed (g)</label>
+          <input id="wmFixedG" inputmode="numeric" placeholder="π.χ. 500" disabled>
+        </div>
+        <div>
+          <label>Barcode (προαιρετικό)</label>
+          <input id="wmBarcode" placeholder="…" disabled>
+        </div>
+      </div>
+
+      <div id="wmMsg" class="msg"></div>
+    </div>
+
+    <div class="modalFoot">
+      <button id="wmCancel" type="button">Άκυρο</button>
+      <button id="wmSave" class="primary" type="button">Αποθήκευση</button>
+    </div>
+  </div>
+</div>
+
 <nav class="bottom">
   <div class="nav">
     <button id="tabScan" class="tab active" type="button">Scan</button>
@@ -372,6 +465,7 @@ function fillFromProduct(p){
 }
 
 let storeTypeFromServer="";
+let storeNameFromServer="";
 
 async function storeInfo(){
   if(!store_id||!token){
@@ -382,7 +476,8 @@ async function storeInfo(){
     const res=await jsonp(API,{action:"store_info",store_id,token});
     if(res.ok){
       storeTypeFromServer = normType(res.store_type||"");
-      qs("storeLine").textContent = `Κατάστημα: ${res.store_name} • ${store_id}` + (storeTypeFromServer ? ` • ${storeTypeFromServer}`:"");
+      storeNameFromServer = String(res.store_name||"");
+      qs("storeLine").textContent = `Κατάστημα: ${storeNameFromServer} • ${store_id}` + (storeTypeFromServer ? ` • ${storeTypeFromServer}`:"");
 
       if(!selectedTypes.length && storeTypeFromServer){
         selectedTypes = [storeTypeFromServer];
@@ -485,6 +580,9 @@ let wMetaCache = {categories:[], subcategories:{}};
 let wItemsCache = [];
 let __wTimer = null;
 
+// current item for modal submit
+let wSelectedItem = null;
+
 function setSelectOptions_(sel, options, placeholder){
   sel.innerHTML = "";
   const opt0 = document.createElement("option");
@@ -509,6 +607,99 @@ function updateWSubcategories_(){
   setSelectOptions_(qs("wSubcategory"), subs, "Όλες");
 }
 
+function openWModal_(item){
+  wSelectedItem = item;
+
+  qs("wmTitle").textContent = item.name || "(χωρίς όνομα)";
+  qs("wmSub").textContent =
+    `${item.category||""}${item.subcategory ? " • "+item.subcategory : ""}` +
+    ` • store: ${storeNameFromServer || store_id}` +
+    (storeTypeFromServer ? ` • ${storeTypeFromServer}` : "");
+
+  qs("wmPriceKg").value = (item.price_per_kg!=null && item.price_per_kg!=="" ) ? String(item.price_per_kg) : "";
+  qs("wmStepG").value   = item.step_g ? String(item.step_g) : "";
+  qs("wmBarcode").value = item.barcode || "";
+
+  const fixedOn = !!item.fixed_price;
+  qs("wmFixedOn").checked = fixedOn;
+  qs("wmFixedG").disabled = !fixedOn;
+  qs("wmFixedG").value = fixedOn ? String(item.fixed_g||"") : "";
+
+  qs("wmMsg").innerHTML = "";
+  qs("wModal").classList.add("show");
+  qs("wModal").setAttribute("aria-hidden","false");
+
+  // focus
+  setTimeout(()=>qs("wmPriceKg").focus(), 50);
+}
+
+function closeWModal_(){
+  qs("wModal").classList.remove("show");
+  qs("wModal").setAttribute("aria-hidden","true");
+  wSelectedItem = null;
+}
+
+function validateNum_(v){
+  const n = Number(String(v||"").replace(",", "."));
+  return isFinite(n) ? n : NaN;
+}
+
+async function submitWeighted_(){
+  if(!wSelectedItem) return;
+
+  const priceKg = validateNum_(qs("wmPriceKg").value);
+  const stepG   = Math.round(validateNum_(qs("wmStepG").value));
+  const fixedOn = !!qs("wmFixedOn").checked;
+  const fixedG  = Math.round(validateNum_(qs("wmFixedG").value));
+
+  if(!(priceKg > 0)){
+    qs("wmMsg").innerHTML = `<span class="bad">Βάλε τιμή €/kg &gt; 0.</span>`;
+    return;
+  }
+  if(!(stepG > 0)){
+    qs("wmMsg").innerHTML = `<span class="bad">Βάλε βήμα (g) &gt; 0.</span>`;
+    return;
+  }
+  if(fixedOn && !(fixedG > 0)){
+    qs("wmMsg").innerHTML = `<span class="bad">Βάλε fixed (g) &gt; 0 ή κλείσε το Fixed.</span>`;
+    return;
+  }
+
+  qs("wmMsg").innerHTML = `<span class="small">Αποθήκευση…</span>`;
+
+  const payload = {
+    action:"weighted_add",
+    store_id,
+    token,
+
+    product_id: wSelectedItem.product_id || "",
+    category: wSelectedItem.category || "",
+    subcategory: wSelectedItem.subcategory || "",
+    name: wSelectedItem.name || "",
+    photo_url: wSelectedItem.photo_url || "",
+    barcode: wSelectedItem.barcode || "",
+
+    price_per_kg: String(priceKg),
+    step_g: String(stepG),
+    fixed_price: fixedOn ? "1" : "0",
+    fixed_g: fixedOn ? String(fixedG) : "0",
+  };
+
+  try{
+    const res = await jsonp(API, payload);
+    if(res && res.ok){
+      const tabName = res.store_tab || res.tab || "Weighted";
+      qs("wmMsg").innerHTML = `<span class="ok">Προστέθηκε ✔ (${tabName})</span>`;
+      if(navigator.vibrate) navigator.vibrate([30,20,30]);
+      setTimeout(closeWModal_, 450);
+      return;
+    }
+    qs("wmMsg").innerHTML = `<span class="bad">Αποτυχία: ${res && (res.error||res.message) ? (res.error||res.message) : "unknown"}</span>`;
+  }catch(e){
+    qs("wmMsg").innerHTML = `<span class="bad">Server error</span>`;
+  }
+}
+
 function renderWGrid_(items){
   const box = qs("wGrid");
   if(!items || !items.length){
@@ -516,13 +707,14 @@ function renderWGrid_(items){
     return;
   }
 
-  box.innerHTML = items.map(it=>{
+  box.innerHTML = items.map((it, idx)=>{
     const fixed = !!it.fixed_price;
     const price = (it.price_per_kg!=null && it.price_per_kg!==0) ? Number(it.price_per_kg).toFixed(2) : "";
     const step  = it.step_g ? `${it.step_g}g` : "";
     const fixedTxt = fixed ? `Fix ${it.fixed_g||""}g` : "";
     const photo = it.photo_url ? it.photo_url : "";
 
+    // store item in dataset index
     return `
       <div class="wcard">
         ${photo ? `<img class="wimg" src="${photo}" alt="">` : `<div class="wimg"></div>`}
@@ -537,49 +729,19 @@ function renderWGrid_(items){
           </div>
 
           <div class="wbtn">
-            <button class="primary" type="button"
-              data-wadd="1"
-              data-product_id="${(it.product_id||"")}"
-              data-name="${(it.name||"").replace(/"/g,'&quot;')}"
-              data-barcode="${(it.barcode||"")}"
-              data-price_per_kg="${it.price_per_kg||0}"
-              data-step_g="${it.step_g||0}"
-              data-fixed_price="${fixed?1:0}"
-              data-fixed_g="${it.fixed_g||0}"
-            >Προσθήκη</button>
+            <button class="primary" type="button" data-widx="${idx}">Επιλογή / Ρύθμιση</button>
           </div>
         </div>
       </div>
     `;
   }).join("");
 
-  box.querySelectorAll("button[data-wadd]").forEach(btn=>{
-    btn.addEventListener("click", async ()=>{
-      const payload = {
-        action:"weighted_add",
-        store_id,
-        token,
-        product_id: btn.getAttribute("data-product_id")||"",
-        name: btn.getAttribute("data-name")||"",
-        barcode: btn.getAttribute("data-barcode")||"",
-        price_per_kg: btn.getAttribute("data-price_per_kg")||"0",
-        step_g: btn.getAttribute("data-step_g")||"0",
-        fixed_price: btn.getAttribute("data-fixed_price")||"0",
-        fixed_g: btn.getAttribute("data-fixed_g")||"0",
-      };
-
-      qs("wMeta").innerHTML = `<span class="small">Προσθήκη…</span>`;
-      try{
-        const res = await jsonp(API, payload);
-        if(res && res.ok){
-          qs("wMeta").innerHTML = `<span class="ok">Προστέθηκε ✔ στο ${res.tab}</span>`;
-          if(navigator.vibrate) navigator.vibrate([30,20,30]);
-        }else{
-          qs("wMeta").innerHTML = `<span class="bad">Αποτυχία: ${res && (res.error||res.message) ? (res.error||res.message) : "unknown"}</span>`;
-        }
-      }catch(e){
-        qs("wMeta").innerHTML = `<span class="bad">Server error</span>`;
-      }
+  box.querySelectorAll("button[data-widx]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const idx = Number(btn.getAttribute("data-widx"));
+      const item = wItemsCache[idx];
+      if(!item) return;
+      openWModal_(item);
     });
   });
 }
@@ -935,7 +1097,7 @@ function activateTab(tab){
   if(tab==="weighted") loadWeighted_(true);
 }
 
-// wiring
+// wiring scan
 qs("btnLookup").addEventListener("click",lookup);
 qs("barcode").addEventListener("input",()=>{
   const b=qs("barcode").value.trim();
@@ -962,6 +1124,7 @@ qs("tabWeighted").addEventListener("click",()=>activateTab("weighted"));
 qs("tabSearch").addEventListener("click",()=>activateTab("search"));
 qs("tabRecent").addEventListener("click",()=>activateTab("recent"));
 
+// weighted filters
 qs("btnWSearch").addEventListener("click",()=>loadWeighted_(false));
 qs("btnWClear").addEventListener("click",()=>{
   qs("wq").value="";
@@ -980,6 +1143,7 @@ qs("wCategory").addEventListener("change", ()=>{
 });
 qs("wSubcategory").addEventListener("change", ()=>loadWeighted_(false));
 
+// scan helpers
 qs("btnMaster").addEventListener("click",()=>{
   const mp=qs("master_price").value.trim();
   if(mp) qs("price").value=mp;
@@ -994,6 +1158,22 @@ document.querySelectorAll("button[data-add]").forEach(btn=>{
     qs("price").value=v ? v.toFixed(2) : "";
     qs("price").focus();
   });
+});
+
+// modal wiring
+qs("wmCloseTop").addEventListener("click", closeWModal_);
+qs("wmCancel").addEventListener("click", closeWModal_);
+qs("wmSave").addEventListener("click", submitWeighted_);
+qs("wmFixedOn").addEventListener("change", ()=>{
+  const on = qs("wmFixedOn").checked;
+  qs("wmFixedG").disabled = !on;
+  if(!on) qs("wmFixedG").value = "";
+});
+qs("wModal").addEventListener("click", (e)=>{
+  if(e.target && e.target.id === "wModal") closeWModal_();
+});
+document.addEventListener("keydown",(e)=>{
+  if(e.key==="Escape" && qs("wModal").classList.contains("show")) closeWModal_();
 });
 
 // init
