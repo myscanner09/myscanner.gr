@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>MyScanner Match</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --card:#11182d;
+      --card2:#18233f;
+      --line:#2b3a62;
+      --text:#eef3ff;
+      --muted:#9fb0d2;
+      --accent:#3b82f6;
+      --accent2:#1d4ed8;
+      --ok:#22c55e;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,Segoe UI,Arial,sans-serif;
+      background:linear-gradient(180deg,#08101f,#0c1530);
+      color:var(--text);
+      min-width:1280px;
+    }
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      padding:14px 22px;
+      border-bottom:1px solid var(--line);
+      background:rgba(8,14,30,.95);
+      position:sticky;
+      top:0;
+      z-index:20;
+    }
+    .brand{
+      font-size:20px;
+      font-weight:800;
+      letter-spacing:.3px;
+    }
+    .top-actions{
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .user-pill{
+      padding:8px 12px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      color:var(--muted);
+      background:rgba(255,255,255,.03);
+      display:none;
+    }
+    .btn{
+      background:linear-gradient(180deg,var(--accent),var(--accent2));
+      color:#fff;
+      border:none;
+      border-radius:10px;
+      padding:10px 16px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .btn.secondary{
+      background:#223154;
+      border:1px solid var(--line);
+    }
+    .btn.warn{
+      background:linear-gradient(180deg,#f59e0b,#d97706);
+    }
+    .btn:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+    .page{
+      max-width:1440px;
+      margin:0 auto;
+      padding:24px;
+    }
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:20px;
+      box-shadow:0 20px 60px rgba(0,0,0,.18);
+    }
+    .grid{
+      display:grid;
+      gap:18px;
+    }
+    .grid-4{
+      grid-template-columns:1.1fr 1.1fr .9fr .9fr;
+    }
+    label{
+      display:block;
+      font-size:13px;
+      color:var(--muted);
+      margin-bottom:8px;
+      font-weight:700;
+    }
+    input[type="text"], input[type="password"], input[type="email"], select{
+      width:100%;
+      background:#0f1730;
+      color:#fff;
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:12px 14px;
+      outline:none;
+      font-size:14px;
+    }
+    input[type="file"]{
+      width:100%;
+      color:var(--muted);
+      border:1px dashed var(--line);
+      background:#0f1730;
+      border-radius:12px;
+      padding:14px;
+    }
+    .muted{color:var(--muted)}
+    .hidden{display:none !important}
+    .section-title{
+      font-size:18px;
+      font-weight:800;
+      margin:0 0 16px;
+    }
+    .spacer{height:16px}
+    .toolbar{
+      display:flex;
+      align-items:end;
+      gap:16px;
+      flex-wrap:wrap;
+    }
+    .table-wrap{
+      overflow:auto;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:#0e1630;
+      margin-top:18px;
+      max-height:70vh;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      min-width:1100px;
+    }
+    th, td{
+      padding:12px 10px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      text-align:left;
+      vertical-align:top;
+      font-size:14px;
+    }
+    th{
+      position:sticky;
+      top:0;
+      z-index:2;
+      background:#173f6b;
+      color:#fff;
+      font-weight:800;
+    }
+    tr:hover td{
+      background:rgba(255,255,255,.025);
+    }
+    .score{
+      font-weight:800;
+      color:#fff;
+    }
+    .score.high{color:#22c55e}
+    .score.mid{color:#f59e0b}
+    .score.low{color:#ef4444}
+    .badge{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:800;
+    }
+    .badge.manual{
+      background:rgba(245,158,11,.15);
+      color:#fbbf24;
+      border:1px solid rgba(245,158,11,.35);
+    }
+    .row-actions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .modal-backdrop{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.62);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:50;
+      padding:24px;
+    }
+    .modal{
+      width:100%;
+      max-width:900px;
+      max-height:85vh;
+      overflow:auto;
+      background:#0f1730;
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:18px;
+      box-shadow:0 20px 80px rgba(0,0,0,.4);
+    }
+    .modal h3{
+      margin:0 0 8px;
+    }
+    .alt-item{
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      margin:10px 0;
+      background:#121c38;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+    }
+    .alt-meta{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+    }
+    .login-box{
+      max-width:1040px;
+      margin:50px auto 0;
+    }
+    .status{
+      margin-top:12px;
+      font-size:14px;
+      color:#c7d4f7;
+    }
+    .error{color:#ff9a9a}
+    .success{color:#86efac}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">MyScanner Match</div>
+    <div class="top-actions">
+      <div id="userPill" class="user-pill"></div>
+      <button id="exportBtn" class="btn warn hidden">Εξαγωγή</button>
+      <button id="logoutBtn" class="btn secondary hidden">Logout</button>
+    </div>
+  </div>
+
+  <div class="page">
+    <!-- LOGIN -->
+    <div id="loginView" class="login-box card">
+      <h2 class="section-title">Login</h2>
+      <div class="grid grid-4">
+        <div>
+          <label>Email</label>
+          <input id="emailInput" type="email" placeholder="user@gmail.com" />
+        </div>
+        <div>
+          <label>Κωδικός</label>
+          <input id="passwordInput" type="password" placeholder="******" />
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button id="loginBtn" class="btn" style="width:100%">Login</button>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <button id="pingBtn" class="btn secondary" style="width:100%">Test API</button>
+        </div>
+      </div>
+      <div id="loginStatus" class="status muted">Περίμενα χειρότερα. Βάλε σωστά credentials και προχώρα.</div>
+    </div>
+
+    <!-- APP -->
+    <div id="appView" class="hidden">
+      <div class="card">
+        <h2 class="section-title">Upload & Επιλογές Match</h2>
+
+        <div class="grid" style="grid-template-columns:1.4fr 1fr 1fr 1fr auto;">
+          <div>
+            <label>Αρχείο Excel</label>
+            <input id="fileInput" type="file" accept=".xlsx,.xls,.csv,.xlsm" />
+          </div>
+          <div>
+            <label>Tab</label>
+            <select id="sheetSelect" disabled></select>
+          </div>
+          <div>
+            <label>Στήλη για match</label>
+            <select id="columnSelect" disabled></select>
+          </div>
+          <div>
+            <label>Όνομα Export</label>
+            <input id="exportNameInput" type="text" placeholder="π.χ. Match Vendor 1" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="matchBtn" class="btn" disabled>Match</button>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="muted" id="fileSummary">Δεν έχει φορτωθεί αρχείο ακόμα.</div>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div id="resultsCard" class="card hidden">
+        <div class="toolbar">
+          <div>
+            <div class="section-title" style="margin-bottom:6px">Αποτελέσματα Match</div>
+            <div id="resultsSummary" class="muted"></div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>barcode</th>
+                <th>τιμή από αρχείο</th>
+                <th>product_name master</th>
+                <th>% match</th>
+                <th>ενέργειες</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL -->
+  <div id="modalBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;">
+        <div>
+          <h3>Εναλλακτικά προϊόντα</h3>
+          <div id="modalSubtitle" class="muted"></div>
+        </div>
+        <button id="closeModalBtn" class="btn secondary">Κλείσιμο</button>
+      </div>
+      <div id="alternativesList" style="margin-top:14px;"></div>
+    </div>
+  </div>
+
+  <script>
+    /**********************
+     * CONFIG
+     **********************/
+    const API_URL = 'https://script.google.com/macros/s/AKfycbwZC0Y-0d_0knF3BjzJobnm9YdfWQG09GmucF8vY96NEpsJL49MDB8WL8g6M2vPJknwHA/exec';
+
+    /**********************
+     * STATE
+     **********************/
+    let currentUser = null;
+    let workbook = null;
+    let workbookData = {};
+    let masterRows = [];
+    let results = [];
+    let currentAltRowIndex = null;
+
+    /**********************
+     * ELEMENTS
+     **********************/
+    const loginView = document.getElementById('loginView');
+    const appView = document.getElementById('appView');
+    const emailInput = document.getElementById('emailInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const loginBtn = document.getElementById('loginBtn');
+    const pingBtn = document.getElementById('pingBtn');
+    const loginStatus = document.getElementById('loginStatus');
+
+    const userPill = document.getElementById('userPill');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const exportBtn = document.getElementById('exportBtn');
+
+    const fileInput = document.getElementById('fileInput');
+    const sheetSelect = document.getElementById('sheetSelect');
+    const columnSelect = document.getElementById('columnSelect');
+    const exportNameInput = document.getElementById('exportNameInput');
+    const matchBtn = document.getElementById('matchBtn');
+    const fileSummary = document.getElementById('fileSummary');
+
+    const resultsCard = document.getElementById('resultsCard');
+    const resultsSummary = document.getElementById('resultsSummary');
+    const resultsBody = document.getElementById('resultsBody');
+
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const modalSubtitle = document.getElementById('modalSubtitle');
+    const alternativesList = document.getElementById('alternativesList');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+
+    /**********************
+     * API
+     **********************/
+    async function apiGet(action, params = {}) {
+      const url = new URL(API_URL);
+      url.searchParams.set('action', action);
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url.toString());
+      return res.json();
+    }
+
+    async function apiPost(payload) {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      return res.json();
+    }
+
+    /**********************
+     * HELPERS
+     **********************/
+    function setStatus(message, type = 'muted') {
+      loginStatus.className = `status ${type}`;
+      loginStatus.textContent = message;
+    }
+
+    function escapeHtml(str='') {
+      return String(str)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+
+    function normalizeGreekText(s='') {
+      let str = String(s).toLowerCase().trim();
+
+      const greeklishMap = [
+        [/mp/g, 'μπ'], [/nt/g, 'ντ'], [/gk/g, 'γκ'], [/ts/g, 'τσ'], [/tz/g, 'τζ'],
+        [/th/g, 'θ'], [/ch/g, 'χ'], [/ps/g, 'ψ'], [/ks|x/g, 'ξ'],
+        [/ou/g, 'ου'], [/ai/g, 'αι'], [/ei/g, 'ει'], [/oi/g, 'οι'],
+        [/yi|ui/g, 'υι'],
+        [/a/g, 'α'], [/b/g, 'β'], [/v/g, 'β'], [/g/g, 'γ'], [/d/g, 'δ'],
+        [/e/g, 'ε'], [/z/g, 'ζ'], [/h/g, 'η'], [/i/g, 'ι'], [/k/g, 'κ'],
+        [/l/g, 'λ'], [/m/g, 'μ'], [/n/g, 'ν'], [/o/g, 'ο'], [/p/g, 'π'],
+        [/r/g, 'ρ'], [/s/g, 'σ'], [/t/g, 'τ'], [/y/g, 'υ'], [/f/g, 'φ'],
+        [/w/g, 'ω'], [/j/g, 'τζ'], [/c/g, 'κ'], [/q/g, 'κ']
+      ];
+
+      str = str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/ς/g, 'σ')
+        .replace(/[.,/#!$%^&*;:{}=_`~()@"'+?<>|[\]\\]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Greeklish to Greek heuristic only when mostly latin
+      const latinChars = (str.match(/[a-z]/g) || []).length;
+      const greekChars = (str.match(/[α-ω]/g) || []).length;
+      if (latinChars > greekChars) {
+        for (const [rx, repl] of greeklishMap) {
+          str = str.replace(rx, repl);
+        }
+      }
+
+      str = str
+        .replace(/gr\b|γραμμ\b|γραμμαρια\b|γραμμαριο\b/g, 'γρ')
+        .replace(/\bκιλα\b|\bκιλο\b|\bkg\b/g, 'κιλο')
+        .replace(/\bτεμ\b|\bτεμαχια\b|\bτεμαχιο\b/g, 'τεμ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      return str;
+    }
+
+    function extractWeightTokens(s='') {
+      const text = normalizeGreekText(s);
+      const tokens = [];
+
+      const regex = /(\d+(?:[.,]\d+)?)\s*(kg|κιλο|g|gr|γρ|ml|lt|l|λιτρα|λιτρο|τεμ)/gi;
+      let m;
+      while ((m = regex.exec(text)) !== null) {
+        tokens.push((m[1] + ' ' + m[2]).replace(',', '.'));
+      }
+
+      return tokens;
+    }
+
+    function tokenize(s='') {
+      const text = normalizeGreekText(s);
+      const stop = new Set([
+        'και','με','σε','απο','του','της','το','τα','των','να','για',
+        'the','with','and','of','from'
+      ]);
+
+      const raw = text.split(/\s+/).filter(Boolean);
+      const filtered = raw.filter(t => !stop.has(t) && t.length > 1);
+      return [...new Set(filtered)];
+    }
+
+    function levenshtein(a, b) {
+      a = a || '';
+      b = b || '';
+      const matrix = Array.from({length: b.length + 1}, () => []);
+      for (let i = 0; i <= b.length; i++) matrix[i][0] = i;
+      for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+      for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+          const cost = b[i - 1] === a[j - 1] ? 0 : 1;
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j - 1] + cost
+          );
+        }
+      }
+      return matrix[b.length][a.length];
+    }
+
+    function similarityRatio(a, b) {
+      if (!a && !b) return 1;
+      const dist = levenshtein(a, b);
+      const maxLen = Math.max(a.length, b.length, 1);
+      return 1 - dist / maxLen;
+    }
+
+    function jaccard(tokensA, tokensB) {
+      const A = new Set(tokensA);
+      const B = new Set(tokensB);
+      const inter = [...A].filter(x => B.has(x)).length;
+      const union = new Set([...A, ...B]).size || 1;
+      return inter / union;
+    }
+
+    function brandHint(tokens) {
+      // crude heuristic: first long token often behaves like a brand
+      return tokens.find(t => t.length >= 4) || '';
+    }
+
+    function scoreMatch(uploadedValue, masterName) {
+      const upNorm = normalizeGreekText(uploadedValue);
+      const mNorm = normalizeGreekText(masterName);
+
+      const upTokens = tokenize(uploadedValue);
+      const mTokens = tokenize(masterName);
+
+      const charSim = similarityRatio(upNorm, mNorm);
+      const tokenSim = jaccard(upTokens, mTokens);
+
+      const upWeights = extractWeightTokens(uploadedValue);
+      const mWeights = extractWeightTokens(masterName);
+      const weightHit = upWeights.length && mWeights.length
+        ? upWeights.some(w => mWeights.includes(w)) ? 1 : 0
+        : 0.5;
+
+      const upBrand = brandHint(upTokens);
+      const mBrand = brandHint(mTokens);
+      const brandHit = upBrand && mBrand
+        ? (upBrand === mBrand ? 1 : 0)
+        : 0.4;
+
+      const containsBoost =
+        upNorm.includes(mNorm) || mNorm.includes(upNorm) ? 1 : 0;
+
+      let score =
+        charSim * 0.38 +
+        tokenSim * 0.32 +
+        weightHit * 0.15 +
+        brandHit * 0.10 +
+        containsBoost * 0.05;
+
+      if (upWeights.length && mWeights.length && !upWeights.some(w => mWeights.includes(w))) {
+        score -= 0.08;
+      }
+
+      score = Math.max(0, Math.min(1, score));
+      return Math.round(score * 100);
+    }
+
+    function getTopMatches(value, limit = 10) {
+      const arr = masterRows.map(row => ({
+        barcode: row.barcode || '',
+        product_name: row.product_name || '',
+        score: scoreMatch(value, row.product_name || '')
+      }));
+
+      arr.sort((a, b) => b.score - a.score || a.product_name.localeCompare(b.product_name, 'el'));
+      return arr.slice(0, limit);
+    }
+
+    function parseWorkbook(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            resolve(wb);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function sheetToObjects(ws) {
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if (!rows.length) return { headers: [], rows: [] };
+
+      const headers = rows[0].map(h => String(h || '').trim());
+      const outRows = rows.slice(1).map((r, idx) => {
+        const obj = {};
+        headers.forEach((h, i) => obj[h || `COL_${i+1}`] = r[i] ?? '');
+        obj.__rowNum = idx + 2;
+        return obj;
+      });
+
+      return { headers, rows: outRows };
+    }
+
+    function renderSheetOptions() {
+      sheetSelect.innerHTML = '';
+      const sheetNames = Object.keys(workbookData);
+
+      sheetNames.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sheetSelect.appendChild(opt);
+      });
+
+      sheetSelect.disabled = !sheetNames.length;
+      if (sheetNames.length) {
+        renderColumnOptions(sheetNames[0]);
+      }
+    }
+
+    function renderColumnOptions(sheetName) {
+      columnSelect.innerHTML = '';
+      const meta = workbookData[sheetName];
+      if (!meta) return;
+
+      meta.headers.forEach(h => {
+        const opt = document.createElement('option');
+        opt.value = h;
+        opt.textContent = h;
+        columnSelect.appendChild(opt);
+      });
+
+      columnSelect.disabled = !meta.headers.length;
+      matchBtn.disabled = !(meta.headers.length && masterRows.length);
+    }
+
+    function renderResults() {
+      resultsBody.innerHTML = '';
+
+      results.forEach((r, idx) => {
+        const tr = document.createElement('tr');
+        const scoreClass = r.match_percent >= 85 ? 'high' : r.match_percent >= 60 ? 'mid' : 'low';
+
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(r.barcode || '')}</td>
+          <td>${escapeHtml(r.uploaded_value || '')}</td>
+          <td>
+            ${escapeHtml(r.master_product_name || '')}
+            ${r.selected_manually ? '<div style="margin-top:6px"><span class="badge manual">χειροκίνητη επιλογή</span></div>' : ''}
+          </td>
+          <td><span class="score ${scoreClass}">${r.match_percent}%</span></td>
+          <td>
+            <div class="row-actions">
+              <button class="btn secondary" onclick="openAlternatives(${idx})">Εναλλακτικά</button>
+            </div>
+          </td>
+        `;
+        resultsBody.appendChild(tr);
+      });
+
+      resultsSummary.textContent = `Βρέθηκαν ${results.length} γραμμές. Το export θα περιέχει τον τελικό επιλεγμένο match πίνακα.`;
+      resultsCard.classList.remove('hidden');
+      exportBtn.classList.remove('hidden');
+    }
+
+    function runMatch() {
+      const sheetName = sheetSelect.value;
+      const colName = columnSelect.value;
+      const meta = workbookData[sheetName];
+      if (!meta) return;
+
+      const sourceRows = meta.rows
+        .map(r => ({
+          uploaded_value: String(r[colName] ?? '').trim()
+        }))
+        .filter(r => r.uploaded_value);
+
+      results = sourceRows.map(src => {
+        const best = getTopMatches(src.uploaded_value, 10)[0] || {
+          barcode: '',
+          product_name: '',
+          score: 0
+        };
+
+        return {
+          barcode: best.barcode || '',
+          uploaded_value: src.uploaded_value,
+          master_product_name: best.product_name || '',
+          match_percent: best.score || 0,
+          selected_manually: false
+        };
+      });
+
+      renderResults();
+    }
+
+    window.openAlternatives = function(rowIndex) {
+      currentAltRowIndex = rowIndex;
+      const row = results[rowIndex];
+      const alts = getTopMatches(row.uploaded_value, 10);
+
+      modalSubtitle.textContent = `Ανέβηκε: ${row.uploaded_value}`;
+      alternativesList.innerHTML = '';
+
+      alts.forEach((alt, i) => {
+        const div = document.createElement('div');
+        div.className = 'alt-item';
+        div.innerHTML = `
+          <div class="alt-meta">
+            <div><strong>${escapeHtml(alt.product_name)}</strong></div>
+            <div class="tiny">barcode: ${escapeHtml(alt.barcode || '')}</div>
+            <div class="tiny">score: ${alt.score}%</div>
+          </div>
+          <div>
+            <button class="btn" data-i="${i}">Επιλογή</button>
+          </div>
+        `;
+
+        div.querySelector('button').addEventListener('click', () => {
+          results[rowIndex] = {
+            ...results[rowIndex],
+            barcode: alt.barcode || '',
+            master_product_name: alt.product_name || '',
+            match_percent: alt.score || 0,
+            selected_manually: true
+          };
+          renderResults();
+          closeModal();
+        });
+
+        alternativesList.appendChild(div);
+      });
+
+      modalBackdrop.style.display = 'flex';
+    };
+
+    function closeModal() {
+      modalBackdrop.style.display = 'none';
+      currentAltRowIndex = null;
+      alternativesList.innerHTML = '';
+    }
+
+    async function loadMaster() {
+      const res = await apiGet('getMaster');
+      if (!res.ok) throw new Error(res.error || 'Master load failed');
+      masterRows = res.rows || [];
+    }
+
+    /**********************
+     * EVENTS
+     **********************/
+    pingBtn.addEventListener('click', async () => {
+      try {
+        const res = await apiGet('ping');
+        setStatus(res.ok ? 'API OK' : 'API πρόβλημα', res.ok ? 'success' : 'error');
+      } catch (err) {
+        setStatus('Αποτυχία επικοινωνίας με API: ' + err.message, 'error');
+      }
+    });
+
+    loginBtn.addEventListener('click', async () => {
+      const email = emailInput.value.trim().toLowerCase();
+      const password = passwordInput.value.trim();
+
+      if (!email || !password) {
+        setStatus('Βάλε email και κωδικό.', 'error');
+        return;
+      }
+
+      try {
+        setStatus('Γίνεται login...', 'muted');
+        const res = await apiGet('login', { email, password });
+
+        if (!res.ok) {
+          setStatus(res.error || 'Login failed', 'error');
+          return;
+        }
+
+        currentUser = res.user;
+        await loadMaster();
+
+        loginView.classList.add('hidden');
+        appView.classList.remove('hidden');
+        logoutBtn.classList.remove('hidden');
+
+        userPill.textContent = `${currentUser.name} • ${currentUser.email}`;
+        userPill.style.display = 'inline-flex';
+
+        setStatus('Login OK', 'success');
+      } catch (err) {
+        setStatus('Σφάλμα login: ' + err.message, 'error');
+      }
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      currentUser = null;
+      workbook = null;
+      workbookData = {};
+      results = [];
+      masterRows = [];
+      loginView.classList.remove('hidden');
+      appView.classList.add('hidden');
+      resultsCard.classList.add('hidden');
+      exportBtn.classList.add('hidden');
+      logoutBtn.classList.add('hidden');
+      userPill.style.display = 'none';
+      fileInput.value = '';
+      sheetSelect.innerHTML = '';
+      columnSelect.innerHTML = '';
+      fileSummary.textContent = 'Δεν έχει φορτωθεί αρχείο ακόμα.';
+    });
+
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        workbook = await parseWorkbook(file);
+        workbookData = {};
+
+        workbook.SheetNames.forEach(name => {
+          const ws = workbook.Sheets[name];
+          workbookData[name] = sheetToObjects(ws);
+        });
+
+        renderSheetOptions();
+
+        const totalSheets = workbook.SheetNames.length;
+        fileSummary.textContent = `Φορτώθηκε: ${file.name} • tabs: ${totalSheets}`;
+      } catch (err) {
+        fileSummary.textContent = 'Αποτυχία ανάγνωσης αρχείου: ' + err.message;
+      }
+    });
+
+    sheetSelect.addEventListener('change', () => {
+      renderColumnOptions(sheetSelect.value);
+    });
+
+    matchBtn.addEventListener('click', () => {
+      runMatch();
+    });
+
+    exportBtn.addEventListener('click', async () => {
+      if (!currentUser) {
+        alert('Δεν υπάρχει login.');
+        return;
+      }
+      if (!results.length) {
+        alert('Δεν υπάρχουν αποτελέσματα για export.');
+        return;
+      }
+
+      const exportName = exportNameInput.value.trim() || `Match Export ${new Date().toLocaleString('el-GR')}`;
+
+      exportBtn.disabled = true;
+      exportBtn.textContent = 'Γίνεται export...';
+
+      try {
+        const res = await apiPost({
+          action: 'exportMatches',
+          userEmail: currentUser.email,
+          userName: currentUser.name,
+          exportName,
+          rows: results
+        });
+
+        if (!res.ok) {
+          alert('Σφάλμα export: ' + (res.error || 'unknown'));
+          return;
+        }
+
+        alert(`Το export δημιουργήθηκε.\n\nΌνομα: ${res.exportName}\nURL: ${res.sheetUrl}`);
+      } catch (err) {
+        alert('Σφάλμα export: ' + err.message);
+      } finally {
+        exportBtn.disabled = false;
+        exportBtn.textContent = 'Εξαγωγή';
+      }
+    });
+
+    closeModalBtn.addEventListener('click', closeModal);
+    modalBackdrop.addEventListener('click', (e) => {
+      if (e.target === modalBackdrop) closeModal();
+    });
+  </script>
+</body>
+</html>
