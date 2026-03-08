@@ -340,3 +340,26 @@ tr:hover td{
   font-size:12px;
   color:var(--muted);
 }
+
+.excluded-row td{
+  opacity:.45;
+  text-decoration:line-through;
+}
+
+.badge-excluded{
+  background:rgba(239,68,68,.14);
+  color:#fca5a5;
+  border:1px solid rgba(239,68,68,.35);
+}
+
+.modal-search-row{
+  display:grid;
+  grid-template-columns:1fr 160px;
+  gap:12px;
+  margin-top:16px;
+  margin-bottom:8px;
+}
+
+.small-gap{
+  margin-top:8px;
+}
