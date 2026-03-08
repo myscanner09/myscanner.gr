@@ -2,6 +2,8 @@
  * CONFIG
  ********************/
 const API_BASE = "http://127.0.0.1:8000"; // άλλαξέ το αργότερα σε production URL
+const AUTO_SEARCH_DEBOUNCE_MS = 350;
+const AUTO_SEARCH_MIN_CHARS = 2;
 
 /********************
  * STATE
@@ -12,6 +14,10 @@ let workbookData = {};
 let currentJobId = null;
 let results = [];
 let pollTimer = null;
+
+let currentModalRowIndex = -1;
+let manualSearchTimer = null;
+let manualSearchAbortController = null;
 
 /********************
  * DOM
@@ -119,10 +125,21 @@ function setLoggedOutUI() {
   workbookData = {};
   currentJobId = null;
   results = [];
+  currentModalRowIndex = -1;
 
   if (pollTimer) {
     clearTimeout(pollTimer);
     pollTimer = null;
+  }
+
+  if (manualSearchTimer) {
+    clearTimeout(manualSearchTimer);
+    manualSearchTimer = null;
+  }
+
+  if (manualSearchAbortController) {
+    manualSearchAbortController.abort();
+    manualSearchAbortController = null;
   }
 
   loginView.classList.remove("hidden");
@@ -147,6 +164,26 @@ function setLoggedOutUI() {
 
   closeModal();
   hideProgress();
+}
+
+function getScoreClass(score) {
+  const v = Number(score || 0);
+  if (v >= 85) return "high";
+  if (v >= 60) return "mid";
+  return "low";
+}
+
+function getCurrentModalRow() {
+  if (currentModalRowIndex < 0) return null;
+  return results[currentModalRowIndex] || null;
+}
+
+function resetManualSearchAbort() {
+  if (manualSearchAbortController) {
+    manualSearchAbortController.abort();
+  }
+  manualSearchAbortController = new AbortController();
+  return manualSearchAbortController;
 }
 
 /********************
@@ -176,13 +213,14 @@ async function apiGet(path) {
   return parseApiResponse(res);
 }
 
-async function apiPost(path, payload) {
+async function apiPost(path, payload, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: options.signal
   });
 
   return parseApiResponse(res);
@@ -291,7 +329,7 @@ function renderResults() {
     }
 
     const score = Number(row.match_percent || 0);
-    const scoreClass = score >= 85 ? "high" : score >= 60 ? "mid" : "low";
+    const scoreClass = getScoreClass(score);
 
     tr.innerHTML = `
       <td>${idx + 1}</td>
@@ -347,30 +385,46 @@ function bindExcludeButtons() {
   excludeButtons.forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.exclude);
-      if (!results[idx]) return;
-
-      results[idx] = {
-        ...results[idx],
-        excluded: true
-      };
-
-      renderResults();
+      excludeResult(idx);
     });
   });
 
   undoButtons.forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.undo);
-      if (!results[idx]) return;
-
-      results[idx] = {
-        ...results[idx],
-        excluded: false
-      };
-
-      renderResults();
+      undoExcludeResult(idx);
     });
   });
+}
+
+function excludeResult(idx) {
+  if (!results[idx]) return;
+
+  results[idx] = {
+    ...results[idx],
+    excluded: true
+  };
+
+  renderResults();
+
+  if (currentModalRowIndex === idx) {
+    renderModalHeaderAndState();
+  }
+}
+
+function undoExcludeResult(idx) {
+  if (!results[idx]) return;
+
+  results[idx] = {
+    ...results[idx],
+    excluded: false
+  };
+
+  renderResults();
+
+  if (currentModalRowIndex === idx) {
+    renderModalHeaderAndState();
+  }
 }
 
 /********************
@@ -380,36 +434,110 @@ function openAlternatives(rowIndex) {
   const row = results[rowIndex];
   if (!row) return;
 
-  const alternatives = Array.isArray(row.alternatives) ? row.alternatives : [];
+  currentModalRowIndex = rowIndex;
+  modalBackdrop.classList.remove("hidden");
 
-  modalSubtitle.textContent = `Αρχική τιμή: ${row.uploaded_value || ""}`;
   manualSearchInput.value = row.uploaded_value || "";
   manualSearchStatus.textContent = "";
-  alternativesList.innerHTML = "";
+  renderModalHeaderAndState();
 
-  if (!alternatives.length) {
-    alternativesList.innerHTML = `<div class="muted">Δεν βρέθηκαν εναλλακτικά.</div>`;
-  } else {
+  const alternatives = Array.isArray(row.alternatives) ? row.alternatives : [];
+  if (alternatives.length) {
     renderAlternativeItems(alternatives, rowIndex);
+  } else {
+    alternativesList.innerHTML = `<div class="muted">Γίνεται έξυπνη αναζήτηση...</div>`;
+    triggerAutoManualSearch(true);
   }
 
-  manualSearchBtn.dataset.rowIndex = String(rowIndex);
-  modalBackdrop.classList.remove("hidden");
+  manualSearchInput.focus();
+  manualSearchInput.select();
+
+  if ((row.uploaded_value || "").trim().length >= AUTO_SEARCH_MIN_CHARS) {
+    triggerAutoManualSearch(true);
+  }
 }
 
 function closeModal() {
+  currentModalRowIndex = -1;
+
+  if (manualSearchTimer) {
+    clearTimeout(manualSearchTimer);
+    manualSearchTimer = null;
+  }
+
+  if (manualSearchAbortController) {
+    manualSearchAbortController.abort();
+    manualSearchAbortController = null;
+  }
+
   modalBackdrop.classList.add("hidden");
   alternativesList.innerHTML = "";
   manualSearchInput.value = "";
   manualSearchStatus.textContent = "";
-  manualSearchBtn.dataset.rowIndex = "-1";
+
+  if (manualSearchBtn) {
+    manualSearchBtn.dataset.rowIndex = "-1";
+    manualSearchBtn.disabled = false;
+    manualSearchBtn.textContent = "Αναζήτηση";
+  }
+}
+
+function renderModalHeaderAndState() {
+  const row = getCurrentModalRow();
+
+  if (!row) {
+    modalSubtitle.textContent = "";
+    return;
+  }
+
+  const suffix = row.excluded ? " • EXCLUDED" : "";
+  modalSubtitle.textContent = `Αρχική τιμή: ${row.uploaded_value || ""}${suffix}`;
+
+  if (manualSearchBtn) {
+    manualSearchBtn.dataset.rowIndex = String(currentModalRowIndex);
+  }
 }
 
 function renderAlternativeItems(items, rowIndex) {
   alternativesList.innerHTML = "";
 
+  const row = results[rowIndex];
+  if (!row) {
+    alternativesList.innerHTML = `<div class="muted">Η γραμμή δεν βρέθηκε.</div>`;
+    return;
+  }
+
+  const actionsWrap = document.createElement("div");
+  actionsWrap.className = "alt-actions-top";
+  actionsWrap.style.display = "flex";
+  actionsWrap.style.gap = "10px";
+  actionsWrap.style.marginBottom = "14px";
+  actionsWrap.style.flexWrap = "wrap";
+
+  const excludeBtn = document.createElement("button");
+  excludeBtn.className = row.excluded ? "btn" : "btn btn-secondary";
+  excludeBtn.textContent = row.excluded ? "Undo Exclude" : "Exclude";
+
+  excludeBtn.addEventListener("click", () => {
+    if (!results[rowIndex]) return;
+
+    if (results[rowIndex].excluded) {
+      undoExcludeResult(rowIndex);
+    } else {
+      excludeResult(rowIndex);
+    }
+
+    renderAlternativeItems(items, rowIndex);
+  });
+
+  actionsWrap.appendChild(excludeBtn);
+  alternativesList.appendChild(actionsWrap);
+
   if (!items || !items.length) {
-    alternativesList.innerHTML = `<div class="muted">Δεν βρέθηκαν αποτελέσματα.</div>`;
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "Δεν βρέθηκαν αποτελέσματα.";
+    alternativesList.appendChild(empty);
     return;
   }
 
@@ -417,11 +545,13 @@ function renderAlternativeItems(items, rowIndex) {
     const div = document.createElement("div");
     div.className = "alt-item";
 
+    const altScore = Number(alt.score || 0);
+
     div.innerHTML = `
       <div class="alt-meta">
         <div><strong>${escapeHtml(alt.product_name || "")}</strong></div>
         <div class="tiny">barcode: ${escapeHtml(alt.barcode || "")}</div>
-        <div class="tiny">score: ${Number(alt.score || 0)}%</div>
+        <div class="tiny">score: ${altScore}%</div>
       </div>
       <div>
         <button class="btn">Επιλογή</button>
@@ -433,7 +563,7 @@ function renderAlternativeItems(items, rowIndex) {
         ...results[rowIndex],
         barcode: alt.barcode || "",
         master_product_name: alt.product_name || "",
-        match_percent: Number(alt.score || 0),
+        match_percent: altScore,
         selected_manually: true,
         excluded: false
       };
@@ -536,7 +666,8 @@ async function loadMatchResults() {
 
   results = (resultRes.results || []).map(r => ({
     ...r,
-    excluded: Boolean(r.excluded)
+    excluded: Boolean(r.excluded),
+    selected_manually: Boolean(r.selected_manually)
   }));
 
   renderResults();
@@ -599,36 +730,101 @@ async function exportResults() {
 }
 
 /********************
- * MANUAL SEARCH
+ * MANUAL / AUTO SEARCH
  ********************/
-async function manualSearch() {
+function triggerAutoManualSearch(immediate = false) {
   const query = manualSearchInput.value.trim();
-  const rowIndex = Number(manualSearchBtn.dataset.rowIndex || "-1");
+  const row = getCurrentModalRow();
 
-  if (rowIndex < 0) return;
+  if (!row) return;
 
-  if (!query) {
-    manualSearchStatus.textContent = "Γράψε κάτι για αναζήτηση.";
+  if (manualSearchTimer) {
+    clearTimeout(manualSearchTimer);
+    manualSearchTimer = null;
+  }
+
+  if (!query || query.length < AUTO_SEARCH_MIN_CHARS) {
+    manualSearchStatus.textContent = query.length === 0
+      ? "Γράψε προϊόν για έξυπνη αναζήτηση."
+      : `Γράψε τουλάχιστον ${AUTO_SEARCH_MIN_CHARS} χαρακτήρες.`;
+
+    const currentAlternatives = Array.isArray(row.alternatives) ? row.alternatives : [];
+    renderAlternativeItems(currentAlternatives, currentModalRowIndex);
     return;
   }
 
-  manualSearchBtn.disabled = true;
-  manualSearchBtn.textContent = "Ψάχνει...";
-  manualSearchStatus.textContent = "Γίνεται αναζήτηση στο master...";
+  if (immediate) {
+    manualSearch().catch(err => {
+      manualSearchStatus.textContent = `Σφάλμα αναζήτησης: ${err.message}`;
+    });
+    return;
+  }
+
+  manualSearchTimer = setTimeout(() => {
+    manualSearch().catch(err => {
+      manualSearchStatus.textContent = `Σφάλμα αναζήτησης: ${err.message}`;
+    });
+  }, AUTO_SEARCH_DEBOUNCE_MS);
+}
+
+async function manualSearch() {
+  const query = manualSearchInput.value.trim();
+  const rowIndex = currentModalRowIndex;
+
+  if (rowIndex < 0) return;
+
+  if (!query || query.length < AUTO_SEARCH_MIN_CHARS) {
+    manualSearchStatus.textContent = `Γράψε τουλάχιστον ${AUTO_SEARCH_MIN_CHARS} χαρακτήρες.`;
+    return;
+  }
+
+  if (manualSearchBtn) {
+    manualSearchBtn.disabled = true;
+    manualSearchBtn.textContent = "Ψάχνει...";
+  }
+
+  manualSearchStatus.textContent = "Γίνεται έξυπνη αναζήτηση στο master...";
+  alternativesList.innerHTML = `<div class="muted">Αναζήτηση...</div>`;
+
+  const controller = resetManualSearchAbort();
 
   try {
-    const res = await apiPost("/master/search", {
-      query,
-      limit: 20
-    });
+    const res = await apiPost(
+      "/master/search",
+      {
+        query,
+        original_value: results[rowIndex]?.uploaded_value || "",
+        row_index: rowIndex,
+        limit: 20
+      },
+      { signal: controller.signal }
+    );
 
-    manualSearchStatus.textContent = `Βρέθηκαν ${(res.results || []).length} αποτελέσματα.`;
-    renderAlternativeItems(res.results || [], rowIndex);
+    if (rowIndex !== currentModalRowIndex) {
+      return;
+    }
+
+    const found = Array.isArray(res.results) ? res.results : [];
+    manualSearchStatus.textContent = `Βρέθηκαν ${found.length} αποτελέσματα.`;
+
+    results[rowIndex] = {
+      ...results[rowIndex],
+      alternatives: found
+    };
+
+    renderAlternativeItems(found, rowIndex);
   } catch (err) {
+    if (err.name === "AbortError") {
+      return;
+    }
+
     manualSearchStatus.textContent = `Σφάλμα αναζήτησης: ${err.message}`;
+    alternativesList.innerHTML = `<div class="muted">Αποτυχία αναζήτησης.</div>`;
   } finally {
-    manualSearchBtn.disabled = false;
-    manualSearchBtn.textContent = "Αναζήτηση";
+    if (manualSearchBtn) {
+      manualSearchBtn.disabled = false;
+      manualSearchBtn.textContent = "Αναζήτηση";
+    }
   }
 }
 
@@ -719,14 +915,25 @@ modalBackdrop.addEventListener("click", e => {
   }
 });
 
-manualSearchBtn.addEventListener("click", async () => {
-  await manualSearch();
+if (manualSearchBtn) {
+  manualSearchBtn.addEventListener("click", async () => {
+    await manualSearch();
+  });
+}
+
+manualSearchInput.addEventListener("input", () => {
+  triggerAutoManualSearch(false);
 });
 
 manualSearchInput.addEventListener("keydown", e => {
   if (e.key === "Enter") {
     e.preventDefault();
-    manualSearchBtn.click();
+    triggerAutoManualSearch(true);
+  }
+
+  if (e.key === "Escape") {
+    e.preventDefault();
+    closeModal();
   }
 });
 
