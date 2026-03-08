@@ -48,6 +48,10 @@ const modalSubtitle = document.getElementById("modalSubtitle");
 const alternativesList = document.getElementById("alternativesList");
 const closeModalBtn = document.getElementById("closeModalBtn");
 
+const manualSearchInput = document.getElementById("manualSearchInput");
+const manualSearchBtn = document.getElementById("manualSearchBtn");
+const manualSearchStatus = document.getElementById("manualSearchStatus");
+
 /********************
  * HELPERS
  ********************/
@@ -141,21 +145,35 @@ function setLoggedOutUI() {
   resultsSummary.textContent = "";
   resultsBody.innerHTML = "";
 
+  closeModal();
   hideProgress();
 }
 
 /********************
  * API
  ********************/
-async function apiGet(path) {
-  const res = await fetch(`${API_BASE}${path}`);
+async function parseApiResponse(res) {
   const text = await res.text();
 
   try {
-    return JSON.parse(text);
+    const data = JSON.parse(text);
+
+    if (!res.ok) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+
+    return data;
   } catch (err) {
-    throw new Error(`Μη έγκυρο JSON από backend: ${text.slice(0, 300)}`);
+    if (err instanceof SyntaxError) {
+      throw new Error(`Μη έγκυρο JSON από backend: ${text.slice(0, 300)}`);
+    }
+    throw err;
   }
+}
+
+async function apiGet(path) {
+  const res = await fetch(`${API_BASE}${path}`);
+  return parseApiResponse(res);
 }
 
 async function apiPost(path, payload) {
@@ -167,13 +185,7 @@ async function apiPost(path, payload) {
     body: JSON.stringify(payload)
   });
 
-  const text = await res.text();
-
-  try {
-    return JSON.parse(text);
-  } catch (err) {
-    throw new Error(`Μη έγκυρο JSON από backend: ${text.slice(0, 300)}`);
-  }
+  return parseApiResponse(res);
 }
 
 /********************
@@ -200,11 +212,15 @@ function parseWorkbook(file) {
 
 function sheetToObjects(ws) {
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
   if (!rows.length) {
     return { headers: [], rows: [] };
   }
 
-  const headers = rows[0].map((h, i) => String(h || `COL_${i + 1}`).trim());
+  const headers = rows[0].map((h, i) => {
+    const value = String(h || "").trim();
+    return value || `COL_${i + 1}`;
+  });
 
   const outRows = rows.slice(1).map((row, idx) => {
     const obj = {};
@@ -233,6 +249,10 @@ function renderSheetOptions() {
 
   if (sheetNames.length) {
     renderColumnOptions(sheetNames[0]);
+  } else {
+    columnSelect.innerHTML = "";
+    columnSelect.disabled = true;
+    matchBtn.disabled = true;
   }
 }
 
@@ -240,7 +260,11 @@ function renderColumnOptions(sheetName) {
   columnSelect.innerHTML = "";
 
   const meta = workbookData[sheetName];
-  if (!meta) return;
+  if (!meta) {
+    columnSelect.disabled = true;
+    matchBtn.disabled = true;
+    return;
+  }
 
   meta.headers.forEach(h => {
     const opt = document.createElement("option");
@@ -261,6 +285,11 @@ function renderResults() {
 
   results.forEach((row, idx) => {
     const tr = document.createElement("tr");
+
+    if (row.excluded) {
+      tr.classList.add("excluded-row");
+    }
+
     const score = Number(row.match_percent || 0);
     const scoreClass = score >= 85 ? "high" : score >= 60 ? "mid" : "low";
 
@@ -271,30 +300,75 @@ function renderResults() {
       <td>
         ${escapeHtml(row.master_product_name || "")}
         ${row.selected_manually ? '<div style="margin-top:6px"><span class="badge badge-manual">χειροκίνητη επιλογή</span></div>' : ""}
+        ${row.excluded ? '<div style="margin-top:6px"><span class="badge badge-excluded">εξαιρέθηκε</span></div>' : ""}
       </td>
       <td><span class="score ${scoreClass}">${score}%</span></td>
       <td>
         <div class="row-actions">
           <button class="btn btn-secondary" data-alt="${idx}">Εναλλακτικά</button>
+          ${
+            row.excluded
+              ? `<button class="btn" data-undo="${idx}">Undo</button>`
+              : `<button class="btn btn-secondary" data-exclude="${idx}">Exclude</button>`
+          }
         </div>
       </td>
     `;
+
     resultsBody.appendChild(tr);
   });
 
-  resultsSummary.textContent = `Σύνολο γραμμών: ${results.length}`;
+  const includedCount = results.filter(r => !r.excluded).length;
+  const excludedCount = results.filter(r => r.excluded).length;
+
+  resultsSummary.textContent = `Σύνολο: ${results.length} • για export: ${includedCount} • excluded: ${excludedCount}`;
   resultsCard.classList.remove("hidden");
   exportBtn.classList.remove("hidden");
 
   bindAlternativeButtons();
+  bindExcludeButtons();
 }
 
 function bindAlternativeButtons() {
   const buttons = document.querySelectorAll("[data-alt]");
+
   buttons.forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.alt);
       openAlternatives(idx);
+    });
+  });
+}
+
+function bindExcludeButtons() {
+  const excludeButtons = document.querySelectorAll("[data-exclude]");
+  const undoButtons = document.querySelectorAll("[data-undo]");
+
+  excludeButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.exclude);
+      if (!results[idx]) return;
+
+      results[idx] = {
+        ...results[idx],
+        excluded: true
+      };
+
+      renderResults();
+    });
+  });
+
+  undoButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.undo);
+      if (!results[idx]) return;
+
+      results[idx] = {
+        ...results[idx],
+        excluded: false
+      };
+
+      renderResults();
     });
   });
 }
@@ -308,49 +382,68 @@ function openAlternatives(rowIndex) {
 
   const alternatives = Array.isArray(row.alternatives) ? row.alternatives : [];
 
-  modalSubtitle.textContent = `Αρχική τιμή: ${row.uploaded_value}`;
+  modalSubtitle.textContent = `Αρχική τιμή: ${row.uploaded_value || ""}`;
+  manualSearchInput.value = row.uploaded_value || "";
+  manualSearchStatus.textContent = "";
   alternativesList.innerHTML = "";
 
   if (!alternatives.length) {
     alternativesList.innerHTML = `<div class="muted">Δεν βρέθηκαν εναλλακτικά.</div>`;
   } else {
-    alternatives.forEach(alt => {
-      const div = document.createElement("div");
-      div.className = "alt-item";
-
-      div.innerHTML = `
-        <div class="alt-meta">
-          <div><strong>${escapeHtml(alt.product_name || "")}</strong></div>
-          <div class="tiny">barcode: ${escapeHtml(alt.barcode || "")}</div>
-          <div class="tiny">score: ${Number(alt.score || 0)}%</div>
-        </div>
-        <div>
-          <button class="btn">Επιλογή</button>
-        </div>
-      `;
-
-      div.querySelector("button").addEventListener("click", () => {
-        results[rowIndex] = {
-          ...results[rowIndex],
-          barcode: alt.barcode || "",
-          master_product_name: alt.product_name || "",
-          match_percent: Number(alt.score || 0),
-          selected_manually: true
-        };
-        renderResults();
-        closeModal();
-      });
-
-      alternativesList.appendChild(div);
-    });
+    renderAlternativeItems(alternatives, rowIndex);
   }
 
+  manualSearchBtn.dataset.rowIndex = String(rowIndex);
   modalBackdrop.classList.remove("hidden");
 }
 
 function closeModal() {
   modalBackdrop.classList.add("hidden");
   alternativesList.innerHTML = "";
+  manualSearchInput.value = "";
+  manualSearchStatus.textContent = "";
+  manualSearchBtn.dataset.rowIndex = "-1";
+}
+
+function renderAlternativeItems(items, rowIndex) {
+  alternativesList.innerHTML = "";
+
+  if (!items || !items.length) {
+    alternativesList.innerHTML = `<div class="muted">Δεν βρέθηκαν αποτελέσματα.</div>`;
+    return;
+  }
+
+  items.forEach(alt => {
+    const div = document.createElement("div");
+    div.className = "alt-item";
+
+    div.innerHTML = `
+      <div class="alt-meta">
+        <div><strong>${escapeHtml(alt.product_name || "")}</strong></div>
+        <div class="tiny">barcode: ${escapeHtml(alt.barcode || "")}</div>
+        <div class="tiny">score: ${Number(alt.score || 0)}%</div>
+      </div>
+      <div>
+        <button class="btn">Επιλογή</button>
+      </div>
+    `;
+
+    div.querySelector("button").addEventListener("click", () => {
+      results[rowIndex] = {
+        ...results[rowIndex],
+        barcode: alt.barcode || "",
+        master_product_name: alt.product_name || "",
+        match_percent: Number(alt.score || 0),
+        selected_manually: true,
+        excluded: false
+      };
+
+      renderResults();
+      closeModal();
+    });
+
+    alternativesList.appendChild(div);
+  });
 }
 
 /********************
@@ -382,6 +475,11 @@ async function startMatch() {
   resultsBody.innerHTML = "";
   results = [];
 
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
   showProgress();
   updateProgress(2, "2%");
   fileSummary.textContent = `Γίνεται αποστολή ${values.length} γραμμών για match...`;
@@ -408,14 +506,6 @@ async function pollMatchStatus() {
   if (!currentJobId) return;
 
   const statusRes = await apiGet(`/match/status/${currentJobId}`);
-
-  if (!statusRes.ok) {
-    matchBtn.disabled = false;
-    matchBtn.textContent = "Match";
-    hideProgress();
-    alert(statusRes.error || "Σφάλμα κατά το polling.");
-    return;
-  }
 
   updateProgress(statusRes.progress, `${statusRes.progress}%`);
   fileSummary.textContent = `Γίνεται match... ${statusRes.processed}/${statusRes.total}`;
@@ -444,15 +534,11 @@ async function loadMatchResults() {
 
   const resultRes = await apiGet(`/match/result/${currentJobId}`);
 
-  if (!resultRes.ok) {
-    matchBtn.disabled = false;
-    matchBtn.textContent = "Match";
-    hideProgress();
-    alert(resultRes.error || "Αποτυχία φόρτωσης αποτελεσμάτων.");
-    return;
-  }
+  results = (resultRes.results || []).map(r => ({
+    ...r,
+    excluded: Boolean(r.excluded)
+  }));
 
-  results = resultRes.results || [];
   renderResults();
   updateProgress(100, "100%");
   fileSummary.textContent = `Ολοκληρώθηκε το match σε ${results.length} γραμμές.`;
@@ -473,7 +559,16 @@ async function exportResults() {
     return;
   }
 
-  const exportName = exportNameInput.value.trim() || `Match Export ${new Date().toLocaleString("el-GR")}`;
+  const exportName =
+    exportNameInput.value.trim() ||
+    `Match Export ${new Date().toLocaleString("el-GR")}`;
+
+  const exportableRows = results.filter(r => !r.excluded);
+
+  if (!exportableRows.length) {
+    alert("Δεν υπάρχουν γραμμές για export.");
+    return;
+  }
 
   exportBtn.disabled = true;
   exportBtn.textContent = "Γίνεται export...";
@@ -482,7 +577,7 @@ async function exportResults() {
     export_name: exportName,
     user_email: currentUser.email,
     user_name: currentUser.name,
-    rows: results.map(r => ({
+    rows: exportableRows.map(r => ({
       barcode: r.barcode || "",
       uploaded_value: r.uploaded_value || "",
       master_product_name: r.master_product_name || "",
@@ -491,17 +586,50 @@ async function exportResults() {
     }))
   };
 
-  const res = await apiPost("/export", payload);
+  try {
+    const res = await apiPost("/export", payload);
 
-  exportBtn.disabled = false;
-  exportBtn.textContent = "Εξαγωγή";
+    alert(
+      `Το export δημιουργήθηκε επιτυχώς.\n\nΌνομα: ${res.export_name}\nΓραμμές: ${res.rows_count}\n\n${res.sheet_url}`
+    );
+  } finally {
+    exportBtn.disabled = false;
+    exportBtn.textContent = "Εξαγωγή";
+  }
+}
 
-  if (!res.ok) {
-    alert(res.error || "Αποτυχία export.");
+/********************
+ * MANUAL SEARCH
+ ********************/
+async function manualSearch() {
+  const query = manualSearchInput.value.trim();
+  const rowIndex = Number(manualSearchBtn.dataset.rowIndex || "-1");
+
+  if (rowIndex < 0) return;
+
+  if (!query) {
+    manualSearchStatus.textContent = "Γράψε κάτι για αναζήτηση.";
     return;
   }
 
-  alert(`Το export δημιουργήθηκε επιτυχώς.\n\nΌνομα: ${res.export_name}\nΓραμμές: ${res.rows_count}\n\n${res.sheet_url}`);
+  manualSearchBtn.disabled = true;
+  manualSearchBtn.textContent = "Ψάχνει...";
+  manualSearchStatus.textContent = "Γίνεται αναζήτηση στο master...";
+
+  try {
+    const res = await apiPost("/master/search", {
+      query,
+      limit: 20
+    });
+
+    manualSearchStatus.textContent = `Βρέθηκαν ${(res.results || []).length} αποτελέσματα.`;
+    renderAlternativeItems(res.results || [], rowIndex);
+  } catch (err) {
+    manualSearchStatus.textContent = `Σφάλμα αναζήτησης: ${err.message}`;
+  } finally {
+    manualSearchBtn.disabled = false;
+    manualSearchBtn.textContent = "Αναζήτηση";
+  }
 }
 
 /********************
@@ -521,12 +649,6 @@ loginBtn.addEventListener("click", async () => {
 
   try {
     const res = await apiPost("/login", { email, password });
-
-    if (!res.ok) {
-      setLoginStatus(res.error || "Αποτυχία σύνδεσης.", "error");
-      loginBtn.disabled = false;
-      return;
-    }
 
     saveSession(res.user);
     setLoggedInUI(res.user);
@@ -594,6 +716,17 @@ closeModalBtn.addEventListener("click", closeModal);
 modalBackdrop.addEventListener("click", e => {
   if (e.target === modalBackdrop) {
     closeModal();
+  }
+});
+
+manualSearchBtn.addEventListener("click", async () => {
+  await manualSearch();
+});
+
+manualSearchInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    manualSearchBtn.click();
   }
 });
 
