@@ -2,7 +2,7 @@
 <html lang="el">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MyScanner Match</title>
   <link rel="stylesheet" href="./style.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -75,6 +75,7 @@
 
         <div class="meta-row">
           <div id="fileSummary" class="muted">Δεν έχει φορτωθεί αρχείο ακόμα.</div>
+
           <div id="progressWrap" class="progress-wrap hidden">
             <div class="progress-bar">
               <div id="progressFill" class="progress-fill"></div>
@@ -119,17 +120,25 @@
           <h3>Εναλλακτικά προϊόντα</h3>
           <div id="modalSubtitle" class="muted"></div>
         </div>
-        <button id="closeModalBtn" class="btn btn-secondary">Κλείσιμο</button>
+
+        <button id="closeModalBtn" class="btn btn-secondary" type="button">
+          Κλείσιμο
+        </button>
       </div>
 
       <div class="modal-search-row">
-  <input id="manualSearchInput" type="text" placeholder="Λεκτική αναζήτηση στο master..." />
-  <button id="manualSearchBtn" class="btn">Αναζήτηση</button>
-</div>
+        <input
+          id="manualSearchInput"
+          type="text"
+          placeholder="Λεκτική αναζήτηση στο master..."
+          autocomplete="off"
+        />
+        <button id="manualSearchBtn" class="btn" type="button">Αναζήτηση</button>
+      </div>
 
-<div id="manualSearchStatus" class="muted small-gap"></div>
+      <div id="manualSearchStatus" class="muted small-gap"></div>
 
-<div id="alternativesList" class="alternatives-list"></div>
+      <div id="alternativesList" class="alternatives-list"></div>
     </div>
   </div>
 
