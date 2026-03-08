@@ -186,6 +186,14 @@ function resetManualSearchAbort() {
   return manualSearchAbortController;
 }
 
+async function saveLearningEvent(payload) {
+  try {
+    await apiPost("/learning/save", payload);
+  } catch (err) {
+    console.error("Learning save failed:", err);
+  }
+}
+
 /********************
  * API
  ********************/
@@ -383,9 +391,9 @@ function bindExcludeButtons() {
   const undoButtons = document.querySelectorAll("[data-undo]");
 
   excludeButtons.forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const idx = Number(btn.dataset.exclude);
-      excludeResult(idx);
+      await excludeResult(idx);
     });
   });
 
@@ -397,13 +405,20 @@ function bindExcludeButtons() {
   });
 }
 
-function excludeResult(idx) {
+async function excludeResult(idx) {
   if (!results[idx]) return;
 
   results[idx] = {
     ...results[idx],
     excluded: true
   };
+
+  await saveLearningEvent({
+    uploaded_value: results[idx]?.uploaded_value || "",
+    selected_barcode: "",
+    selected_name: "",
+    action: "exclude"
+  });
 
   renderResults();
 
@@ -518,13 +533,13 @@ function renderAlternativeItems(items, rowIndex) {
   excludeBtn.className = row.excluded ? "btn" : "btn btn-secondary";
   excludeBtn.textContent = row.excluded ? "Undo Exclude" : "Exclude";
 
-  excludeBtn.addEventListener("click", () => {
+  excludeBtn.addEventListener("click", async () => {
     if (!results[rowIndex]) return;
 
     if (results[rowIndex].excluded) {
       undoExcludeResult(rowIndex);
     } else {
-      excludeResult(rowIndex);
+      await excludeResult(rowIndex);
     }
 
     renderAlternativeItems(items, rowIndex);
@@ -558,7 +573,7 @@ function renderAlternativeItems(items, rowIndex) {
       </div>
     `;
 
-    div.querySelector("button").addEventListener("click", () => {
+    div.querySelector("button").addEventListener("click", async () => {
       results[rowIndex] = {
         ...results[rowIndex],
         barcode: alt.barcode || "",
@@ -567,6 +582,13 @@ function renderAlternativeItems(items, rowIndex) {
         selected_manually: true,
         excluded: false
       };
+
+      await saveLearningEvent({
+        uploaded_value: results[rowIndex]?.uploaded_value || "",
+        selected_barcode: alt.barcode || "",
+        selected_name: alt.product_name || "",
+        action: "manual_select"
+      });
 
       renderResults();
       closeModal();
