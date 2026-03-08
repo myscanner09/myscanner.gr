@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1440, initial-scale=1" />
+  <title>MyScanner Match</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">MyScanner Match</div>
+
+    <div class="topbar-right">
+      <div id="userPill" class="user-pill hidden"></div>
+      <button id="exportBtn" class="btn btn-warn hidden">Εξαγωγή</button>
+      <button id="logoutBtn" class="btn btn-secondary hidden">Logout</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <!-- LOGIN VIEW -->
+    <section id="loginView" class="card login-card">
+      <h1 class="section-title">Login</h1>
+
+      <div class="grid grid-3">
+        <div>
+          <label for="emailInput">Email</label>
+          <input id="emailInput" type="email" placeholder="name@email.com" />
+        </div>
+
+        <div>
+          <label for="passwordInput">Κωδικός</label>
+          <input id="passwordInput" type="password" placeholder="******" />
+        </div>
+
+        <div class="align-end">
+          <button id="loginBtn" class="btn w-100">Login</button>
+        </div>
+      </div>
+
+      <div id="loginStatus" class="status muted">Σύνδεση στο σύστημα.</div>
+    </section>
+
+    <!-- APP VIEW -->
+    <section id="appView" class="hidden">
+      <section class="card">
+        <h2 class="section-title">Αρχείο και Ρυθμίσεις Match</h2>
+
+        <div class="grid grid-5">
+          <div>
+            <label for="fileInput">Αρχείο Excel</label>
+            <input id="fileInput" type="file" accept=".xlsx,.xls,.xlsm,.csv" />
+          </div>
+
+          <div>
+            <label for="sheetSelect">Tab</label>
+            <select id="sheetSelect" disabled></select>
+          </div>
+
+          <div>
+            <label for="columnSelect">Στήλη για match</label>
+            <select id="columnSelect" disabled></select>
+          </div>
+
+          <div>
+            <label for="exportNameInput">Όνομα Export</label>
+            <input id="exportNameInput" type="text" placeholder="π.χ. Match Test 1" />
+          </div>
+
+          <div class="align-end">
+            <button id="matchBtn" class="btn w-100" disabled>Match</button>
+          </div>
+        </div>
+
+        <div class="meta-row">
+          <div id="fileSummary" class="muted">Δεν έχει φορτωθεί αρχείο ακόμα.</div>
+          <div id="progressWrap" class="progress-wrap hidden">
+            <div class="progress-bar">
+              <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div id="progressText" class="progress-text">0%</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="resultsCard" class="card hidden">
+        <div class="results-header">
+          <div>
+            <h2 class="section-title">Αποτελέσματα Match</h2>
+            <div id="resultsSummary" class="muted"></div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>barcode</th>
+                <th>τιμή από αρχείο</th>
+                <th>product_name master</th>
+                <th>% match</th>
+                <th>ενέργειες</th>
+              </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- MODAL -->
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <h3>Εναλλακτικά προϊόντα</h3>
+          <div id="modalSubtitle" class="muted"></div>
+        </div>
+        <button id="closeModalBtn" class="btn btn-secondary">Κλείσιμο</button>
+      </div>
+
+      <div id="alternativesList" class="alternatives-list"></div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
