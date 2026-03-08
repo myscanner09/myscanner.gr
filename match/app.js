@@ -149,7 +149,13 @@ function setLoggedOutUI() {
  ********************/
 async function apiGet(path) {
   const res = await fetch(`${API_BASE}${path}`);
-  return res.json();
+  const text = await res.text();
+
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error(`Μη έγκυρο JSON από backend: ${text.slice(0, 300)}`);
+  }
 }
 
 async function apiPost(path, payload) {
@@ -160,7 +166,14 @@ async function apiPost(path, payload) {
     },
     body: JSON.stringify(payload)
   });
-  return res.json();
+
+  const text = await res.text();
+
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error(`Μη έγκυρο JSON από backend: ${text.slice(0, 300)}`);
+  }
 }
 
 /********************
