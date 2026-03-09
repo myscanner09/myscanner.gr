@@ -109,6 +109,82 @@ function clearSession() {
   sessionStorage.removeItem("myscanner_match_user");
 }
 
+function safeString(value, fallback = "") {
+  const v = value == null ? fallback : String(value);
+  return v.trim();
+}
+
+function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeConfidenceZone(zone) {
+  const z = safeString(zone).toLowerCase();
+  if (["high", "medium", "low", "very_low"].includes(z)) return z;
+  return "very_low";
+}
+
+function getZoneLabel(zone) {
+  const z = normalizeConfidenceZone(zone);
+  if (z === "high") return "HIGH";
+  if (z === "medium") return "MEDIUM";
+  if (z === "low") return "LOW";
+  return "VERY LOW";
+}
+
+function getZoneClass(zone) {
+  const z = normalizeConfidenceZone(zone);
+  if (z === "high") return "zone-high";
+  if (z === "medium") return "zone-medium";
+  if (z === "low") return "zone-low";
+  return "zone-very-low";
+}
+
+function prettifyReason(reason = "") {
+  const text = safeString(reason);
+  if (!text) return "Χωρίς διαθέσιμη αιτιολόγηση";
+
+  const map = {
+    exact_normalized_match: "Ακριβές normalized match",
+    strong_token_overlap: "Πολύ ισχυρή επικάλυψη tokens",
+    good_token_overlap: "Καλή επικάλυψη tokens",
+    brand_match: "Ταίριασμα brand",
+    weight_match: "Ταίριασμα ποσότητας / βάρους",
+    number_match: "Ταίριασμα αριθμητικών στοιχείων",
+    category_match: "Ταίριασμα κατηγορίας",
+    contains_match: "Το ένα περιέχει το άλλο",
+    quantity_conflict: "Πιθανή σύγκρουση ποσότητας / συσκευασίας",
+    brand_conflict: "Πιθανή σύγκρουση brand",
+    weak_signal_match: "Ασθενές συνολικό σήμα",
+    no_match: "Δεν βρέθηκε επαρκές match"
+  };
+
+  return text
+    .split(",")
+    .map(x => safeString(x))
+    .filter(Boolean)
+    .map(x => map[x] || x.replaceAll("_", " "))
+    .join(" • ");
+}
+
+function deriveReviewStatus(row) {
+  if (row?.excluded) return "excluded";
+  if (row?.selected_manually) return "manual_selected";
+
+  const zone = normalizeConfidenceZone(row?.confidence_zone);
+  if (zone === "high") return "auto_high";
+  return "review";
+}
+
+function getReviewLabel(status) {
+  const s = safeString(status).toLowerCase();
+  if (s === "excluded") return "excluded";
+  if (s === "manual_selected") return "manual";
+  if (s === "auto_high") return "auto";
+  return "review";
+}
+
 function setLoggedInUI(user) {
   currentUser = user;
   loginView.classList.add("hidden");
@@ -184,6 +260,34 @@ function resetManualSearchAbort() {
   }
   manualSearchAbortController = new AbortController();
   return manualSearchAbortController;
+}
+
+function normalizeResultRow(row) {
+  const alternatives = Array.isArray(row?.alternatives)
+    ? row.alternatives.map(alt => ({
+        barcode: safeString(alt?.barcode),
+        product_name: safeString(alt?.product_name),
+        score: safeNumber(alt?.score, 0),
+        confidence_zone: normalizeConfidenceZone(alt?.confidence_zone),
+        match_reason: safeString(alt?.match_reason),
+        reason_parts: Array.isArray(alt?.reason_parts) ? alt.reason_parts : []
+      }))
+    : [];
+
+  const normalized = {
+    barcode: safeString(row?.barcode),
+    uploaded_value: safeString(row?.uploaded_value),
+    master_product_name: safeString(row?.master_product_name),
+    match_percent: safeNumber(row?.match_percent, 0),
+    confidence_zone: normalizeConfidenceZone(row?.confidence_zone),
+    match_reason: safeString(row?.match_reason),
+    selected_manually: Boolean(row?.selected_manually),
+    excluded: Boolean(row?.excluded),
+    review_status: safeString(row?.review_status) || deriveReviewStatus(row),
+    alternatives
+  };
+
+  return normalized;
 }
 
 async function saveLearningEvent(payload) {
@@ -329,7 +433,10 @@ function renderColumnOptions(sheetName) {
 function renderResults() {
   resultsBody.innerHTML = "";
 
-  results.forEach((row, idx) => {
+  results.forEach((rawRow, idx) => {
+    const row = normalizeResultRow(rawRow);
+    results[idx] = row;
+
     const tr = document.createElement("tr");
 
     if (row.excluded) {
@@ -338,15 +445,24 @@ function renderResults() {
 
     const score = Number(row.match_percent || 0);
     const scoreClass = getScoreClass(score);
+    const zoneClass = getZoneClass(row.confidence_zone);
+    const zoneLabel = getZoneLabel(row.confidence_zone);
+    const reviewLabel = getReviewLabel(row.review_status);
+    const reasonLabel = prettifyReason(row.match_reason);
 
     tr.innerHTML = `
       <td>${idx + 1}</td>
       <td>${escapeHtml(row.barcode || "")}</td>
       <td>${escapeHtml(row.uploaded_value || "")}</td>
       <td>
-        ${escapeHtml(row.master_product_name || "")}
-        ${row.selected_manually ? '<div style="margin-top:6px"><span class="badge badge-manual">χειροκίνητη επιλογή</span></div>' : ""}
-        ${row.excluded ? '<div style="margin-top:6px"><span class="badge badge-excluded">εξαιρέθηκε</span></div>' : ""}
+        <div><strong>${escapeHtml(row.master_product_name || "")}</strong></div>
+        <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
+          <span class="badge ${zoneClass}">${zoneLabel}</span>
+          <span class="badge badge-review">${escapeHtml(reviewLabel)}</span>
+          ${row.selected_manually ? '<span class="badge badge-manual">χειροκίνητη επιλογή</span>' : ""}
+          ${row.excluded ? '<span class="badge badge-excluded">εξαιρέθηκε</span>' : ""}
+        </div>
+        <div class="tiny" style="margin-top:8px;">${escapeHtml(reasonLabel)}</div>
       </td>
       <td><span class="score ${scoreClass}">${score}%</span></td>
       <td>
@@ -366,8 +482,12 @@ function renderResults() {
 
   const includedCount = results.filter(r => !r.excluded).length;
   const excludedCount = results.filter(r => r.excluded).length;
+  const highCount = results.filter(r => normalizeConfidenceZone(r.confidence_zone) === "high" && !r.excluded).length;
+  const reviewCount = results.filter(r => getReviewLabel(r.review_status) === "review" && !r.excluded).length;
 
-  resultsSummary.textContent = `Σύνολο: ${results.length} • για export: ${includedCount} • excluded: ${excludedCount}`;
+  resultsSummary.textContent =
+    `Σύνολο: ${results.length} • για export: ${includedCount} • excluded: ${excludedCount} • high: ${highCount} • review: ${reviewCount}`;
+
   resultsCard.classList.remove("hidden");
   exportBtn.classList.remove("hidden");
 
@@ -408,15 +528,16 @@ function bindExcludeButtons() {
 async function excludeResult(idx) {
   if (!results[idx]) return;
 
-  results[idx] = {
+  results[idx] = normalizeResultRow({
     ...results[idx],
-    excluded: true
-  };
+    excluded: true,
+    review_status: "excluded"
+  });
 
   await saveLearningEvent({
     uploaded_value: results[idx]?.uploaded_value || "",
-    selected_barcode: "",
-    selected_name: "",
+    selected_barcode: results[idx]?.barcode || "",
+    selected_name: results[idx]?.master_product_name || "",
     action: "exclude"
   });
 
@@ -430,10 +551,11 @@ async function excludeResult(idx) {
 function undoExcludeResult(idx) {
   if (!results[idx]) return;
 
-  results[idx] = {
+  results[idx] = normalizeResultRow({
     ...results[idx],
-    excluded: false
-  };
+    excluded: false,
+    review_status: results[idx]?.selected_manually ? "manual_selected" : deriveReviewStatus(results[idx])
+  });
 
   renderResults();
 
@@ -505,8 +627,10 @@ function renderModalHeaderAndState() {
     return;
   }
 
+  const zoneLabel = getZoneLabel(row.confidence_zone);
   const suffix = row.excluded ? " • EXCLUDED" : "";
-  modalSubtitle.textContent = `Αρχική τιμή: ${row.uploaded_value || ""}${suffix}`;
+  modalSubtitle.textContent =
+    `Αρχική τιμή: ${row.uploaded_value || ""} • score: ${row.match_percent || 0}% • ${zoneLabel}${suffix}`;
 
   if (manualSearchBtn) {
     manualSearchBtn.dataset.rowIndex = String(currentModalRowIndex);
@@ -556,17 +680,33 @@ function renderAlternativeItems(items, rowIndex) {
     return;
   }
 
-  items.forEach(alt => {
+  items.forEach(altRaw => {
+    const alt = {
+      barcode: safeString(altRaw?.barcode),
+      product_name: safeString(altRaw?.product_name),
+      score: safeNumber(altRaw?.score, 0),
+      confidence_zone: normalizeConfidenceZone(altRaw?.confidence_zone),
+      match_reason: safeString(altRaw?.match_reason),
+      reason_parts: Array.isArray(altRaw?.reason_parts) ? altRaw.reason_parts : []
+    };
+
     const div = document.createElement("div");
     div.className = "alt-item";
 
     const altScore = Number(alt.score || 0);
+    const altZoneLabel = getZoneLabel(alt.confidence_zone);
+    const altZoneClass = getZoneClass(alt.confidence_zone);
+    const altReason = prettifyReason(alt.match_reason);
 
     div.innerHTML = `
       <div class="alt-meta">
         <div><strong>${escapeHtml(alt.product_name || "")}</strong></div>
         <div class="tiny">barcode: ${escapeHtml(alt.barcode || "")}</div>
-        <div class="tiny">score: ${altScore}%</div>
+        <div class="tiny" style="margin-top:4px; display:flex; flex-wrap:wrap; gap:6px;">
+          <span class="badge ${altZoneClass}">${altZoneLabel}</span>
+          <span class="badge badge-score">score ${altScore}%</span>
+        </div>
+        <div class="tiny" style="margin-top:6px;">${escapeHtml(altReason)}</div>
       </div>
       <div>
         <button class="btn">Επιλογή</button>
@@ -574,14 +714,19 @@ function renderAlternativeItems(items, rowIndex) {
     `;
 
     div.querySelector("button").addEventListener("click", async () => {
-      results[rowIndex] = {
+      const updatedRow = normalizeResultRow({
         ...results[rowIndex],
         barcode: alt.barcode || "",
         master_product_name: alt.product_name || "",
         match_percent: altScore,
+        confidence_zone: alt.confidence_zone || "very_low",
+        match_reason: alt.match_reason || "",
         selected_manually: true,
-        excluded: false
-      };
+        excluded: false,
+        review_status: "manual_selected"
+      });
+
+      results[rowIndex] = updatedRow;
 
       await saveLearningEvent({
         uploaded_value: results[rowIndex]?.uploaded_value || "",
@@ -686,11 +831,7 @@ async function loadMatchResults() {
 
   const resultRes = await apiGet(`/match/result/${currentJobId}`);
 
-  results = (resultRes.results || []).map(r => ({
-    ...r,
-    excluded: Boolean(r.excluded),
-    selected_manually: Boolean(r.selected_manually)
-  }));
+  results = (resultRes.results || []).map(r => normalizeResultRow(r));
 
   renderResults();
   updateProgress(100, "100%");
@@ -735,7 +876,11 @@ async function exportResults() {
       uploaded_value: r.uploaded_value || "",
       master_product_name: r.master_product_name || "",
       match_percent: Number(r.match_percent || 0),
-      selected_manually: Boolean(r.selected_manually)
+      confidence_zone: normalizeConfidenceZone(r.confidence_zone),
+      match_reason: r.match_reason || "",
+      review_status: r.review_status || deriveReviewStatus(r),
+      selected_manually: Boolean(r.selected_manually),
+      excluded: Boolean(r.excluded)
     }))
   };
 
@@ -826,13 +971,23 @@ async function manualSearch() {
       return;
     }
 
-    const found = Array.isArray(res.results) ? res.results : [];
+    const found = Array.isArray(res.results)
+      ? res.results.map(x => ({
+          barcode: safeString(x?.barcode),
+          product_name: safeString(x?.product_name),
+          score: safeNumber(x?.score, 0),
+          confidence_zone: normalizeConfidenceZone(x?.confidence_zone),
+          match_reason: safeString(x?.match_reason),
+          reason_parts: Array.isArray(x?.reason_parts) ? x.reason_parts : []
+        }))
+      : [];
+
     manualSearchStatus.textContent = `Βρέθηκαν ${found.length} αποτελέσματα.`;
 
-    results[rowIndex] = {
+    results[rowIndex] = normalizeResultRow({
       ...results[rowIndex],
       alternatives: found
-    };
+    });
 
     renderAlternativeItems(found, rowIndex);
   } catch (err) {
