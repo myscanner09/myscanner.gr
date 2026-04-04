@@ -75,8 +75,6 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
 .msg{margin-top:8px;font-size:13px;color:var(--m);line-height:1.35}
 .msg .ok{color:var(--ok);font-weight:800} .msg .bad{color:var(--bad);font-weight:800}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.quick{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-.quick button{padding:10px 12px;font-size:14px;border-radius:14px}
 .bottom{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(11,15,26,.82);border-top:1px solid var(--b);backdrop-filter:blur(10px);z-index:60}
 .nav{max-width:980px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
 .tab{border-radius:16px;padding:12px 10px;font-weight:900;text-align:center}
@@ -234,27 +232,16 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
           <label>Περιγραφή</label>
           <input id="product_name" placeholder="(από κατάλογο ή χειροκίνητα)">
 
-          <label>Internal code</label>
-          <input id="internal_code" placeholder="(από κατάλογο)">
-
           <div class="grid2">
             <div><label>Κατηγορία</label><input id="category" placeholder="(από κατάλογο)"></div>
             <div><label>Μονάδα</label><input id="unit" placeholder="π.χ. τεμ / κιλό"></div>
           </div>
 
           <div class="grid2">
-            <div><label>Τιμή καταλόγου</label><input id="master_price" disabled placeholder="(από κατάλογο)"></div>
-            <div><label>Τιμή (αλλάζει)</label><input id="price" placeholder="π.χ. 2.50" inputmode="decimal"></div>
-          </div>
-
-          <div class="quick">
-            <button id="btnMaster" type="button">Ίδια με master</button>
-            <button data-add="0.10" type="button">+0.10</button>
-            <button data-add="0.50" type="button">+0.50</button>
-            <button data-add="1.00" type="button">+1.00</button>
-          </div>
-
-          <div class="grid2">
+            <div>
+              <label>Τιμή</label>
+              <input id="price" placeholder="π.χ. 2.50" inputmode="decimal">
+            </div>
             <div>
               <label>ΦΠΑ</label>
               <select id="vat">
@@ -264,9 +251,10 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
                 <option value="0%">0%</option>
               </select>
             </div>
-            <div style="display:flex;align-items:end">
-              <button id="btnSave" class="primary" type="button" style="width:100%">Save</button>
-            </div>
+          </div>
+
+          <div style="margin-top:12px">
+            <button id="btnSave" class="primary" type="button" style="width:100%">Save</button>
           </div>
 
           <div id="formStatus" class="msg"></div>
@@ -314,9 +302,9 @@ video{width:100%;height:var(--camH);max-height:var(--camH);border-radius:18px;ba
   <!-- Search pane -->
   <section id="paneSearch" style="display:none">
     <div class="card">
-      <label>Λεκτική αναζήτηση (όνομα / barcode / internal code)</label>
+      <label>Λεκτική αναζήτηση (όνομα / barcode)</label>
       <div class="btnrow">
-        <input id="q" class="grow" placeholder="π.χ. coca, 520..., κωδικός">
+        <input id="q" class="grow" placeholder="π.χ. coca, 520...">
         <button id="btnSearch" class="primary" type="button">Search</button>
       </div>
 
@@ -482,7 +470,7 @@ const TYPES = [
   {id:"MANAVIKO",   label:"ΜΑΝΑΒΙΚΟ"},
   {id:"FARMAKEIO",  label:"ΦΑΡΜΑΚΕΙΟ"},
   {id:"PETSHOP",    label:"PET SHOP"},
-  {id:"BOOKSTORE",    label:"ΒΙΒΛΙΟΠΩΛΕΙΟ"},
+  {id:"BOOKSTORE",  label:"ΒΙΒΛΙΟΠΩΛΕΙΟ"},
 ];
 const TYPES_KEY = "myscanner_types_"+store_id;
 let selectedTypes = [];
@@ -568,7 +556,7 @@ function jsonp(api,params){
   });
 }
 
-/* ✅ iOS-friendly body lock (σταματάει “πηδήματα” όταν ανοίγει modal) */
+/* iOS-friendly body lock */
 let __lockScrollY = 0;
 function lockBody_(on){
   const body = document.body;
@@ -596,11 +584,9 @@ function safe(v){ return (v??"")==="" ? "" : String(v); }
 
 function fillFromProduct(p){
   qs("barcode").value=safe(p.barcode)||qs("barcode").value;
-  qs("internal_code").value=safe(p.internal_code);
   qs("product_name").value=safe(p.product_name);
   qs("category").value=safe(p.category);
   qs("unit").value=safe(p.unit);
-  qs("master_price").value=(p.price??"")==="" ? "" : String(p.price);
 }
 
 let storeTypeFromServer="";
@@ -655,11 +641,9 @@ async function lookup(){
     const err = String(res.error||res.message||"").toLowerCase();
     if(err.includes("not_found")){
       isNewProduct = true;
-      qs("internal_code").value="";
       qs("product_name").value="";
       qs("category").value="";
       qs("unit").value="";
-      qs("master_price").value="";
       setMsg("formStatus",'<span class="bad">Δεν υπάρχει στον κατάλογο → συμπλήρωσε στοιχεία και πάτα Save (θα προστεθεί).</span>');
       qs("product_name").focus();
       return;
@@ -749,7 +733,6 @@ function renderWMeta_(preserve=true){
   const curCat  = preserve ? (qs("wCategory").value || "") : "";
   const curSub  = preserve ? (qs("wSubcategory").value || "") : "";
 
-  // ✅ βάζει και το storeTypeFromServer αν λείπει από meta
   const types = Array.isArray(wMetaCache.store_types) ? [...wMetaCache.store_types] : [];
   if(storeTypeFromServer && !types.includes(storeTypeFromServer)) types.unshift(storeTypeFromServer);
 
@@ -1069,7 +1052,6 @@ function openNWModal_(){
   qs("nwPhoto").value = "";
   qs("nwMsg").innerHTML = "";
 
-  // ✅ κρατάει αυτό που διάλεξες στο weighted φίλτρο
   qs("nwStoreType").value = qs("wStoreType").value || storeTypeFromServer || "";
 
   qs("nwModal").classList.add("show");
@@ -1183,18 +1165,16 @@ window.addEventListener("online", flushPending_);
 async function save(){
   let barcode = qs("barcode").value.trim();
   const price = qs("price").value.trim();
-
-  const internalCode = qs("internal_code").value.trim();
   const productName  = qs("product_name").value.trim();
 
   if(!barcode) barcode = "0";
 
-  if (barcode === "0" && !internalCode && !productName) {
-    alert("Βάλε τουλάχιστον Περιγραφή ή Internal code.");
+  if (barcode === "0" && !productName) {
+    alert("Βάλε τουλάχιστον Περιγραφή.");
     return;
   }
 
-  if(!price || Number(price) <= 0){
+  if(!price || Number(String(price).replace(",", ".")) <= 0){
     setMsg("formStatus",'<span class="bad">Βάλε τιμή &gt; 0.</span>');
     return;
   }
@@ -1210,17 +1190,17 @@ async function save(){
     store_id,
     token,
     barcode,
-    internal_code: internalCode,
+    internal_code: "",
     product_name: productName,
     category: qs("category").value.trim(),
     unit: qs("unit").value.trim(),
-    price,
+    price: String(Number(String(price).replace(",", "."))),
     vat: qs("vat").value,
     add_to_catalog: (isNewProduct && barcode !== "0") ? "1" : "0"
   };
 
   setMsg("formStatus", `<span class="small">Στάλθηκε… (queue: ${pendingCount_()})</span>`);
-  addRecent({barcode, product_name: payload.product_name, price, vat: payload.vat, at: Date.now(), status: "pending"});
+  addRecent({barcode, product_name: payload.product_name, price: payload.price, vat: payload.vat, at: Date.now(), status: "pending"});
 
   qs("price").value = "";
   qs("barcode").value = "";
@@ -1269,16 +1249,14 @@ async function doSearch(force=false){
       <div class="item">
         <b>${it.product_name||"(χωρίς όνομα)"}</b>
         <div class="small">
-          barcode: ${it.barcode||""} • internal: ${it.internal_code||""} • ${it.category||""} • ${it.unit||""} • τιμή: ${(it.price??"")}
+          barcode: ${it.barcode||""} • ${it.category||""} • ${it.unit||""} • τιμή: ${(it.price??"")}
         </div>
         <div class="btnrow">
           <button class="grow" type="button"
             data-b="${it.barcode||""}"
-            data-ic="${it.internal_code||""}"
             data-name="${(it.product_name||"").replace(/"/g,'&quot;')}"
             data-cat="${(it.category||"").replace(/"/g,'&quot;')}"
             data-unit="${it.unit||""}"
-            data-price="${(it.price??"")}"
           >Επιλογή</button>
         </div>
       </div>`).join("");
@@ -1286,18 +1264,14 @@ async function doSearch(force=false){
     qs("results").querySelectorAll("button").forEach(btn=>{
       btn.addEventListener("click", ()=>{
         const b  = btn.getAttribute("data-b") || "";
-        const ic = btn.getAttribute("data-ic") || "";
         const nm = btn.getAttribute("data-name") || "";
         const ct = btn.getAttribute("data-cat") || "";
         const un = btn.getAttribute("data-unit") || "";
-        const pr = btn.getAttribute("data-price") || "";
 
         qs("barcode").value = b;
         qs("product_name").value = nm;
-        qs("internal_code").value = ic;
         qs("category").value = ct;
         qs("unit").value = un;
-        qs("master_price").value = pr;
 
         isNewProduct = false;
         activateTab("scan");
@@ -1471,7 +1445,8 @@ qs("barcode").addEventListener("input",()=>{
   if(b.length>=8) scheduleLookup();
 });
 qs("btnClear").addEventListener("click",()=>{
-  ["barcode","product_name","internal_code","category","unit","master_price","price"].forEach(id=>qs(id).value="");
+  ["barcode","product_name","category","unit","price"].forEach(id=>qs(id).value="");
+  qs("vat").value = "13%";
   setMsg("formStatus","");
   lastDetected="";
   isNewProduct=false;
@@ -1527,21 +1502,6 @@ qs("nwCloseTop").addEventListener("click", closeNWModal_);
 qs("nwCancel").addEventListener("click", closeNWModal_);
 qs("nwSave").addEventListener("click", saveNewWeightedProduct_);
 qs("nwModal").addEventListener("click", (e)=>{ if(e.target && e.target.id==="nwModal") closeNWModal_(); });
-
-qs("btnMaster").addEventListener("click",()=>{
-  const mp=qs("master_price").value.trim();
-  if(mp) qs("price").value=mp;
-  qs("price").focus();
-});
-document.querySelectorAll("button[data-add]").forEach(btn=>{
-  btn.addEventListener("click",()=>{
-    const add=Number(btn.getAttribute("data-add")||0);
-    const cur=Number(qs("price").value || qs("master_price").value || 0);
-    const v=Math.max(0,cur+add);
-    qs("price").value=v ? v.toFixed(2) : "";
-    qs("price").focus();
-  });
-});
 
 qs("wmCloseTop").addEventListener("click", closeWModal_);
 qs("wmCancel").addEventListener("click", closeWModal_);
