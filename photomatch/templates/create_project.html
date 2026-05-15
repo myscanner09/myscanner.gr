@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-header">
+    <div>
+        <h1>Νέο Project</h1>
+        <p class="muted">
+            Δημιούργησε νέο project φωτογράφισης προϊόντων για κατάστημα.
+        </p>
+    </div>
+
+    <a class="button secondary" href="/dashboard">← Πίσω</a>
+</section>
+
+<section class="card">
+    <h2>Στοιχεία Καταστήματος</h2>
+
+    <form method="post" action="/projects/create" enctype="multipart/form-data" class="form project-form">
+
+        <div class="form-grid">
+            <div>
+                <label>Όνομα καταστήματος</label>
+                <input type="text" name="store_name" placeholder="π.χ. Market Παπαδόπουλος" required>
+            </div>
+
+            <div>
+                <label>Email καταστήματος</label>
+                <input type="email" name="store_email" placeholder="store@example.com">
+            </div>
+
+            <div>
+                <label>Salesforce Grid / Account ID</label>
+                <input type="text" name="salesforce_grid" placeholder="π.χ. 001xxxxxxx">
+            </div>
+        </div>
+
+        <hr>
+
+        <h2>Αρχείο Προϊόντων</h2>
+        <p class="muted">
+            Ανέβασε αρχείο Excel ή CSV με τα προϊόντα του καταστήματος.
+        </p>
+
+        <div class="upload-box">
+            <input type="file" name="product_file" accept=".xlsx,.xls,.csv" required>
+        </div>
+
+        <div class="notice">
+            Στην επόμενη φάση θα γίνεται preview στηλών και επιλογή barcode, item name, SKU και product ID.
+            Προς το παρόν το project δημιουργείται βασικά για να ελέγξουμε τη ροή.
+        </div>
+
+        <button type="submit">Δημιουργία Project</button>
+    </form>
+</section>
+
+{% endblock %}
