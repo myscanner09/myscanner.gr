@@ -1,8 +1,7 @@
-import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -11,20 +10,24 @@ from passlib.context import CryptContext
 
 from app.config import settings
 from app.database import Base, engine, get_db
-from app.models import User, Project, Product
+from app.models import User, Project
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
+STATIC_DIR = BASE_DIR / "static"
+TEMPLATES_DIR = BASE_DIR / "templates"
+
 DATA_DIR.mkdir(exist_ok=True)
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title=settings.APP_NAME)
 
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -60,7 +63,10 @@ def create_default_admin():
         db.close()
 
 
-create_default_admin()
+try:
+    create_default_admin()
+except Exception as e:
+    print("ERROR creating default admin:", str(e))
 
 
 @app.get("/health")
@@ -68,7 +74,11 @@ def health():
     return {
         "status": "ok",
         "app": settings.APP_NAME,
-        "environment": settings.APP_ENV
+        "environment": settings.APP_ENV,
+        "base_dir": str(BASE_DIR),
+        "templates_dir_exists": TEMPLATES_DIR.exists(),
+        "static_dir_exists": STATIC_DIR.exists(),
+        "data_dir_exists": DATA_DIR.exists()
     }
 
 
@@ -84,7 +94,8 @@ def login_page(request: Request):
         {
             "request": request,
             "app_name": settings.APP_NAME,
-            "error": None
+            "error": None,
+            "user": None
         }
     )
 
@@ -104,7 +115,8 @@ def login_submit(
             {
                 "request": request,
                 "app_name": settings.APP_NAME,
-                "error": "Λάθος email ή κωδικός."
+                "error": "Λάθος email ή κωδικός.",
+                "user": None
             }
         )
 
@@ -131,8 +143,7 @@ def get_current_user(request: Request, db: Session):
     if not user_email:
         return None
 
-    user = db.query(User).filter(User.email == user_email).first()
-    return user
+    return db.query(User).filter(User.email == user_email).first()
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
