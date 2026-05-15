@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-header">
+    <div>
+        <h1>Preview Αρχείου</h1>
+        <p class="muted">
+            Έλεγξε τις στήλες και όρισε ποια αντιστοιχεί σε κάθε πεδίο.
+        </p>
+    </div>
+
+    <a class="button secondary" href="/projects/create">← Πίσω</a>
+</section>
+
+<section class="card">
+    <h2>Στοιχεία Καταστήματος</h2>
+
+    <div class="info-grid">
+        <div>
+            <span>Κατάστημα</span>
+            <strong>{{ store_name }}</strong>
+        </div>
+
+        <div>
+            <span>Email</span>
+            <strong>{{ store_email or "-" }}</strong>
+        </div>
+
+        <div>
+            <span>Salesforce Grid</span>
+            <strong>{{ salesforce_grid or "-" }}</strong>
+        </div>
+
+        <div>
+            <span>Αρχείο</span>
+            <strong>{{ original_filename }}</strong>
+        </div>
+
+        <div>
+            <span>Σύνολο γραμμών</span>
+            <strong>{{ total_rows }}</strong>
+        </div>
+    </div>
+</section>
+
+<section class="card" style="margin-top: 24px;">
+    <h2>Αντιστοίχιση Στηλών</h2>
+    <p class="muted">
+        Διάλεξε τις στήλες που αντιστοιχούν στα βασικά πεδία προϊόντος.
+    </p>
+
+    <form method="post" action="/projects/create/final" class="form">
+
+        <input type="hidden" name="temp_file_id" value="{{ temp_file_id }}">
+        <input type="hidden" name="store_name" value="{{ store_name }}">
+        <input type="hidden" name="store_email" value="{{ store_email }}">
+        <input type="hidden" name="salesforce_grid" value="{{ salesforce_grid }}">
+        <input type="hidden" name="original_filename" value="{{ original_filename }}">
+
+        <div class="form-grid">
+            <div>
+                <label>Barcode column</label>
+                <select name="barcode_column">
+                    <option value="">-- Χωρίς barcode --</option>
+                    {% for col in columns %}
+                    <option value="{{ col }}">{{ col }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label>Item Name column *</label>
+                <select name="item_name_column" required>
+                    <option value="">-- Διάλεξε στήλη --</option>
+                    {% for col in columns %}
+                    <option value="{{ col }}">{{ col }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label>SKU column</label>
+                <select name="sku_column">
+                    <option value="">-- Χωρίς SKU --</option>
+                    {% for col in columns %}
+                    <option value="{{ col }}">{{ col }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label>Product ID column</label>
+                <select name="product_id_column">
+                    <option value="">-- Χωρίς Product ID --</option>
+                    {% for col in columns %}
+                    <option value="{{ col }}">{{ col }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label>Category column</label>
+                <select name="category_column">
+                    <option value="">-- Χωρίς Category --</option>
+                    {% for col in columns %}
+                    <option value="{{ col }}">{{ col }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="notice">
+            Υποχρεωτική είναι μόνο η στήλη Item Name. Τα υπόλοιπα βοηθούν για πιο σωστό naming και export.
+        </div>
+
+        <button type="submit">Δημιουργία Project με Προϊόντα</button>
+    </form>
+</section>
+
+<section class="card" style="margin-top: 24px;">
+    <h2>Preview πρώτων γραμμών</h2>
+
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    {% for col in columns %}
+                    <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in preview_rows %}
+                <tr>
+                    {% for col in columns %}
+                    <td>{{ row.get(col, "") }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{% endblock %}
