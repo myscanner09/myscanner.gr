@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-header">
+    <div>
+        <h1>{{ project.store_name }}</h1>
+        <p class="muted">Project λεπτομέρειες και πρόοδος φωτογραφιών.</p>
+    </div>
+
+    <a class="button secondary" href="/dashboard">← Dashboard</a>
+</section>
+
+<section class="stats-grid">
+    <div class="stat-card">
+        <span>Products</span>
+        <strong>{{ products_count }}</strong>
+    </div>
+
+    <div class="stat-card">
+        <span>Status</span>
+        <strong>{{ project.status }}</strong>
+    </div>
+
+    <div class="stat-card">
+        <span>Photos Uploaded</span>
+        <strong>0</strong>
+    </div>
+</section>
+
+<section class="card">
+    <h2>Στοιχεία Project</h2>
+
+    <table>
+        <tbody>
+            <tr>
+                <th>Κατάστημα</th>
+                <td>{{ project.store_name }}</td>
+            </tr>
+            <tr>
+                <th>Email</th>
+                <td>{{ project.store_email or "-" }}</td>
+            </tr>
+            <tr>
+                <th>Salesforce Grid</th>
+                <td>{{ project.salesforce_grid or "-" }}</td>
+            </tr>
+            <tr>
+                <th>Αρχικό αρχείο</th>
+                <td>{{ project.original_filename or "-" }}</td>
+            </tr>
+            <tr>
+                <th>Project Token</th>
+                <td><code>{{ project.project_token }}</code></td>
+            </tr>
+            <tr>
+                <th>Store Link</th>
+                <td>
+                    <code>/store/{{ project.project_token }}</code>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<section class="card" style="margin-top: 24px;">
+    <h2>Προϊόντα</h2>
+    <p class="empty">
+        Στο επόμενο βήμα θα διαβάζουμε το Excel/CSV και θα εμφανίζουμε εδώ τα προϊόντα.
+    </p>
+</section>
+
+{% endblock %}
