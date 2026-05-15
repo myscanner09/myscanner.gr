@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-header">
+    <div>
+        <h1>Dashboard</h1>
+        <p class="muted">Καλώς ήρθες, {{ user.name }}.</p>
+    </div>
+
+    <a class="button" href="#">+ Νέο Project</a>
+</section>
+
+<section class="stats-grid">
+    <div class="stat-card">
+        <span>Projects</span>
+        <strong>{{ projects|length }}</strong>
+    </div>
+
+    <div class="stat-card">
+        <span>Active</span>
+        <strong>0</strong>
+    </div>
+
+    <div class="stat-card">
+        <span>Photos Uploaded</span>
+        <strong>0</strong>
+    </div>
+</section>
+
+<section class="card">
+    <h2>Projects</h2>
+
+    {% if projects %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Κατάστημα</th>
+                    <th>Email</th>
+                    <th>Salesforce Grid</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in projects %}
+                <tr>
+                    <td>{{ project.store_name }}</td>
+                    <td>{{ project.store_email or "-" }}</td>
+                    <td>{{ project.salesforce_grid or "-" }}</td>
+                    <td>{{ project.status }}</td>
+                    <td>{{ project.created_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="empty">Δεν υπάρχουν ακόμα projects. Το κουμπί είναι εκεί, αλλά ακόμα κάνει τον τουρίστα.</p>
+    {% endif %}
+</section>
+
+{% endblock %}
