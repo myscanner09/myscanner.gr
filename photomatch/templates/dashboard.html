@@ -45,7 +45,11 @@
             <tbody>
                 {% for project in projects %}
                 <tr>
-                    <td>{{ project.store_name }}</td>
+                    <td>
+    <a href="/projects/{{ project.id }}" class="table-link">
+        {{ project.store_name }}
+    </a>
+</td>
                     <td>{{ project.store_email or "-" }}</td>
                     <td>{{ project.salesforce_grid or "-" }}</td>
                     <td>{{ project.status }}</td>
