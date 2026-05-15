@@ -64,23 +64,38 @@
                 </div>
 
                 <form
-                    method="post"
-                    action="/store/{{ project.project_token }}/products/{{ product.id }}/upload-photo"
-                    enctype="multipart/form-data"
-                    class="upload-photo-form"
-                >
-                    <input
-                        type="file"
-                        name="photo_file"
-                        accept="image/*"
-                        capture="environment"
-                        required
-                    >
+    method="post"
+    action="/store/{{ project.project_token }}/products/{{ product.id }}/upload-photo"
+    enctype="multipart/form-data"
+    class="upload-photo-form"
+>
+    <div class="photo-actions">
 
-                    <button type="submit">
-                        Ανέβασμα Φωτογραφίας
-                    </button>
-                </form>
+        <label class="button camera-button">
+            📷 Λήψη φωτογραφίας
+            <input
+                type="file"
+                name="photo_file"
+                accept="image/*"
+                capture="environment"
+                onchange="this.form.submit()"
+                hidden
+            >
+        </label>
+
+        <label class="button secondary gallery-button">
+            🖼️ Επιλογή από συσκευή
+            <input
+                type="file"
+                name="photo_file"
+                accept="image/*"
+                onchange="this.form.submit()"
+                hidden
+            >
+        </label>
+
+    </div>
+</form>
             </div>
             {% endfor %}
         </div>
