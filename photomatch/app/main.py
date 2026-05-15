@@ -10,7 +10,11 @@ from passlib.context import CryptContext
 
 from app.config import settings
 from app.database import Base, engine, get_db
-from app.models import User, Project
+from app.models import User, Project, Product
+
+import json
+import secrets
+from app.file_parser import parse_uploaded_file
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -264,4 +268,143 @@ def project_detail_page(
             "project": project,
             "products_count": products_count
         }
+    )
+
+@app.post("/projects/preview", response_class=HTMLResponse)
+async def preview_project_file(
+    request: Request,
+    store_name: str = Form(...),
+    store_email: str = Form(None),
+    salesforce_grid: str = Form(None),
+    product_file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(request, db)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    file_bytes = await product_file.read()
+
+    try:
+        parsed = parse_uploaded_file(product_file.filename, file_bytes)
+    except Exception as e:
+        return templates.TemplateResponse(
+            name="create_project.html",
+            request=request,
+            context={
+                "app_name": settings.APP_NAME,
+                "user": user,
+                "error": str(e)
+            }
+        )
+
+    temp_dir = DATA_DIR / "temp"
+    temp_dir.mkdir(exist_ok=True)
+
+    temp_file_id = secrets.token_urlsafe(12)
+    temp_json_path = temp_dir / f"{temp_file_id}.json"
+    temp_original_path = temp_dir / f"{temp_file_id}_{product_file.filename.replace(' ', '_')}"
+
+    with open(temp_json_path, "w", encoding="utf-8") as f:
+        json.dump(parsed, f, ensure_ascii=False)
+
+    with open(temp_original_path, "wb") as f:
+        f.write(file_bytes)
+
+    return templates.TemplateResponse(
+        name="preview_project.html",
+        request=request,
+        context={
+            "app_name": settings.APP_NAME,
+            "user": user,
+            "temp_file_id": temp_file_id,
+            "store_name": store_name,
+            "store_email": store_email,
+            "salesforce_grid": salesforce_grid,
+            "original_filename": product_file.filename,
+            "columns": parsed["columns"],
+            "preview_rows": parsed["preview_rows"],
+            "total_rows": parsed["total_rows"]
+        }
+    )
+
+
+@app.post("/projects/create/final")
+def create_project_final(
+    request: Request,
+    temp_file_id: str = Form(...),
+    store_name: str = Form(...),
+    store_email: str = Form(None),
+    salesforce_grid: str = Form(None),
+    original_filename: str = Form(...),
+    barcode_column: str = Form(None),
+    item_name_column: str = Form(...),
+    sku_column: str = Form(None),
+    product_id_column: str = Form(None),
+    category_column: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(request, db)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    temp_json_path = DATA_DIR / "temp" / f"{temp_file_id}.json"
+
+    if not temp_json_path.exists():
+        return RedirectResponse(url="/projects/create", status_code=302)
+
+    with open(temp_json_path, "r", encoding="utf-8") as f:
+        parsed = json.load(f)
+
+    rows = parsed.get("rows", [])
+
+    project_token = secrets.token_urlsafe(12)
+
+    new_project = Project(
+        project_token=project_token,
+        store_name=store_name,
+        store_email=store_email,
+        salesforce_grid=salesforce_grid,
+        original_filename=original_filename,
+        status="active",
+        created_by=user.id
+    )
+
+    db.add(new_project)
+    db.commit()
+    db.refresh(new_project)
+
+    created_products = 0
+
+    for row in rows:
+        item_name = str(row.get(item_name_column, "")).strip()
+
+        if not item_name:
+            continue
+
+        product = Product(
+            project_id=new_project.id,
+            barcode=str(row.get(barcode_column, "")).strip() if barcode_column else None,
+            item_name=item_name,
+            sku=str(row.get(sku_column, "")).strip() if sku_column else None,
+            product_id=str(row.get(product_id_column, "")).strip() if product_id_column else None,
+            category=str(row.get(category_column, "")).strip() if category_column else None,
+            photo_status="missing"
+        )
+
+        db.add(product)
+        created_products += 1
+
+    db.commit()
+
+    try:
+        temp_json_path.unlink()
+    except Exception:
+        pass
+
+    return RedirectResponse(
+        url=f"/projects/{new_project.id}",
+        status_code=302
     )
