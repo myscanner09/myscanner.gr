@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Form, Depends
+from fastapi import FastAPI, Request, Form, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -166,5 +166,102 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
             "app_name": settings.APP_NAME,
             "user": user,
             "projects": projects
+        }
+    )
+
+@app.get("/projects/create", response_class=HTMLResponse)
+def create_project_page(request: Request, db: Session = Depends(get_db)):
+    user = get_current_user(request, db)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    return templates.TemplateResponse(
+        name="create_project.html",
+        request=request,
+        context={
+            "app_name": settings.APP_NAME,
+            "user": user
+        }
+    )
+
+
+@app.post("/projects/create")
+async def create_project_submit(
+    request: Request,
+    store_name: str = Form(...),
+    store_email: str = Form(None),
+    salesforce_grid: str = Form(None),
+    product_file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(request, db)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    # Προσωρινή απλή αποθήκευση αρχείου στο Render filesystem.
+    # Στο επόμενο βήμα θα το διαβάζουμε και μετά θα το στέλνουμε Google Drive.
+    uploads_dir = DATA_DIR / "uploads"
+    uploads_dir.mkdir(exist_ok=True)
+
+    safe_filename = product_file.filename.replace(" ", "_")
+    file_path = uploads_dir / safe_filename
+
+    file_bytes = await product_file.read()
+
+    with open(file_path, "wb") as f:
+        f.write(file_bytes)
+
+    import secrets
+
+    project_token = secrets.token_urlsafe(12)
+
+    new_project = Project(
+        project_token=project_token,
+        store_name=store_name,
+        store_email=store_email,
+        salesforce_grid=salesforce_grid,
+        original_filename=product_file.filename,
+        status="active",
+        created_by=user.id
+    )
+
+    db.add(new_project)
+    db.commit()
+    db.refresh(new_project)
+
+    return RedirectResponse(
+        url=f"/projects/{new_project.id}",
+        status_code=302
+    )
+
+
+@app.get("/projects/{project_id}", response_class=HTMLResponse)
+def project_detail_page(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(request, db)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    products_count = len(project.products)
+
+    return templates.TemplateResponse(
+        name="project_detail.html",
+        request=request,
+        context={
+            "app_name": settings.APP_NAME,
+            "user": user,
+            "project": project,
+            "products_count": products_count
         }
     )
