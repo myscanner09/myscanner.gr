@@ -434,3 +434,69 @@ select {
     background: #eef2ff;
     color: var(--primary);
 }
+
+.review-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.reject-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.reject-form input {
+    min-width: 180px;
+    padding: 9px 10px;
+    font-size: 13px;
+}
+
+.small-button {
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+}
+
+.approve-button {
+    background: #16a34a;
+    color: white;
+}
+
+.approve-button:hover {
+    background: #15803d;
+}
+
+.reject-button {
+    background: #dc2626;
+    color: white;
+}
+
+.reject-button:hover {
+    background: #b91c1c;
+}
+
+.approved-text {
+    color: #166534;
+    font-weight: 700;
+}
+
+.reject-reason {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: #fff7ed;
+    color: #9a3412;
+    border-radius: 10px;
+    font-size: 13px;
+}
+
+.reject-notice {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: #fff7ed;
+    color: #9a3412;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+}
