@@ -8,7 +8,6 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 
-
 from app.config import settings
 from app.database import Base, engine, get_db
 from app.models import User, Project
