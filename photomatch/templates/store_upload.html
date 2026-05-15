@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-header">
+    <div>
+        <h1>{{ project.store_name }}</h1>
+        <p class="muted">
+            Ανέβασε φωτογραφίες για τα προϊόντα του καταστήματος.
+        </p>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <div class="stat-card">
+        <span>Σύνολο προϊόντων</span>
+        <strong>{{ total_products }}</strong>
+    </div>
+
+    <div class="stat-card">
+        <span>Φωτογραφίες ανεβασμένες</span>
+        <strong>{{ uploaded_products }}</strong>
+    </div>
+
+    <div class="stat-card">
+        <span>Λείπουν</span>
+        <strong>{{ missing_products }}</strong>
+    </div>
+</section>
+
+<section class="card">
+    <h2>Λίστα προϊόντων</h2>
+
+    {% if message %}
+    <div class="success-message">
+        {{ message }}
+    </div>
+    {% endif %}
+
+    {% if project.products %}
+        <div class="product-upload-list">
+            {% for product in project.products %}
+            <div class="product-upload-card">
+                <div class="product-main">
+                    <div>
+                        <h3>{{ product.item_name }}</h3>
+
+                        <p class="muted">
+                            Barcode: {{ product.barcode or "-" }} |
+                            SKU: {{ product.sku or "-" }} |
+                            Product ID: {{ product.product_id or "-" }}
+                        </p>
+
+                        <div class="status-badge status-{{ product.photo_status }}">
+                            {{ product.photo_status }}
+                        </div>
+
+                        {% if product.photo_filename %}
+                        <p class="muted small-text">
+                            Αρχείο: {{ product.photo_filename }}
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <form
+                    method="post"
+                    action="/store/{{ project.project_token }}/products/{{ product.id }}/upload-photo"
+                    enctype="multipart/form-data"
+                    class="upload-photo-form"
+                >
+                    <input
+                        type="file"
+                        name="photo_file"
+                        accept="image/*"
+                        capture="environment"
+                        required
+                    >
+
+                    <button type="submit">
+                        Ανέβασμα Φωτογραφίας
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="empty">
+            Δεν υπάρχουν προϊόντα σε αυτό το project.
+        </p>
+    {% endif %}
+</section>
+
+{% endblock %}
