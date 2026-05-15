@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form, Depends, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -407,4 +407,112 @@ def create_project_final(
     return RedirectResponse(
         url=f"/projects/{new_project.id}",
         status_code=302
+    )
+
+@app.get("/store/{project_token}", response_class=HTMLResponse)
+def store_upload_page(
+    project_token: str,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    project = db.query(Project).filter(Project.project_token == project_token).first()
+
+    if not project:
+        return HTMLResponse(
+            content="<h1>Project not found</h1><p>Το link δεν είναι σωστό ή έχει λήξει.</p>",
+            status_code=404
+        )
+
+    total_products = len(project.products)
+    uploaded_products = len([p for p in project.products if p.photo_status in ["uploaded", "approved"]])
+    missing_products = len([p for p in project.products if p.photo_status == "missing"])
+
+    return templates.TemplateResponse(
+        name="store_upload.html",
+        request=request,
+        context={
+            "app_name": settings.APP_NAME,
+            "user": None,
+            "project": project,
+            "total_products": total_products,
+            "uploaded_products": uploaded_products,
+            "missing_products": missing_products,
+            "message": None
+        }
+    )
+
+
+@app.post("/store/{project_token}/products/{product_id}/upload-photo", response_class=HTMLResponse)
+async def upload_product_photo(
+    project_token: str,
+    product_id: int,
+    request: Request,
+    photo_file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    project = db.query(Project).filter(Project.project_token == project_token).first()
+
+    if not project:
+        return HTMLResponse(
+            content="<h1>Project not found</h1><p>Το link δεν είναι σωστό ή έχει λήξει.</p>",
+            status_code=404
+        )
+
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.project_id == project.id
+    ).first()
+
+    if not product:
+        return HTMLResponse(
+            content="<h1>Product not found</h1><p>Το προϊόν δεν βρέθηκε.</p>",
+            status_code=404
+        )
+
+    photos_dir = DATA_DIR / "uploads" / "photos" / str(project.id)
+    photos_dir.mkdir(parents=True, exist_ok=True)
+
+    original_filename = photo_file.filename or "photo.jpg"
+    extension = original_filename.split(".")[-1].lower() if "." in original_filename else "jpg"
+
+    safe_barcode = (product.barcode or "no_barcode").replace("/", "_").replace("\\", "_")
+    safe_product_id = (product.product_id or str(product.id)).replace("/", "_").replace("\\", "_")
+
+    safe_item_name = product.item_name[:50]
+    safe_item_name = "".join(
+        c if c.isalnum() or c in [" ", "_", "-"] else "_"
+        for c in safe_item_name
+    ).strip().replace(" ", "_")
+
+    final_filename = f"{safe_barcode}_{safe_product_id}_{safe_item_name}.{extension}"
+    file_path = photos_dir / final_filename
+
+    file_bytes = await photo_file.read()
+
+    with open(file_path, "wb") as f:
+        f.write(file_bytes)
+
+    product.photo_status = "uploaded"
+    product.photo_filename = final_filename
+    product.photo_drive_file_id = None
+    product.photo_drive_url = None
+
+    db.commit()
+
+    total_products = len(project.products)
+    uploaded_products = len([p for p in project.products if p.photo_status in ["uploaded", "approved"]])
+    missing_products = len([p for p in project.products if p.photo_status == "missing"])
+
+    return templates.TemplateResponse(
+        name="store_upload.html",
+        request=request,
+        context={
+            "app_name": settings.APP_NAME,
+            "user": None,
+            "project": project,
+            "total_products": total_products,
+            "uploaded_products": uploaded_products,
+            "missing_products": missing_products,
+            "message": f"Η φωτογραφία για το προϊόν '{product.item_name}' ανέβηκε επιτυχώς."
+        }
     )
