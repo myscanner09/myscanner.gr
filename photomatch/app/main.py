@@ -59,6 +59,10 @@ def create_default_admin():
         db.add(admin_user)
         db.commit()
 
+    except Exception as e:
+        db.rollback()
+        print("ERROR creating default admin:", str(e))
+
     finally:
         db.close()
 
@@ -66,7 +70,7 @@ def create_default_admin():
 try:
     create_default_admin()
 except Exception as e:
-    print("ERROR creating default admin:", str(e))
+    print("STARTUP ERROR creating default admin:", str(e))
 
 
 @app.get("/health")
@@ -90,9 +94,9 @@ def home():
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse(
-        "login.html",
-        {
-            "request": request,
+        name="login.html",
+        request=request,
+        context={
             "app_name": settings.APP_NAME,
             "error": None,
             "user": None
@@ -111,9 +115,9 @@ def login_submit(
 
     if not user or not verify_password(password, user.password_hash):
         return templates.TemplateResponse(
-            "login.html",
-            {
-                "request": request,
+            name="login.html",
+            request=request,
+            context={
                 "app_name": settings.APP_NAME,
                 "error": "Λάθος email ή κωδικός.",
                 "user": None
@@ -156,9 +160,9 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     projects = db.query(Project).order_by(Project.created_at.desc()).all()
 
     return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
+        name="dashboard.html",
+        request=request,
+        context={
             "app_name": settings.APP_NAME,
             "user": user,
             "projects": projects
