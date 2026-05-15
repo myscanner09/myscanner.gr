@@ -53,12 +53,14 @@
                 <th>Project Token</th>
                 <td><code>{{ project.project_token }}</code></td>
             </tr>
-            <tr>
-                <th>Store Link</th>
-                <td>
-                    <code>/store/{{ project.project_token }}</code>
-                </td>
-            </tr>
+           <tr>
+    <th>Store Link</th>
+    <td>
+        <a class="table-link" href="/store/{{ project.project_token }}" target="_blank">
+            /store/{{ project.project_token }}
+        </a>
+    </td>
+</tr>
         </tbody>
     </table>
 </section>
@@ -87,7 +89,16 @@
                         <td>{{ product.sku or "-" }}</td>
                         <td>{{ product.product_id or "-" }}</td>
                         <td>{{ product.category or "-" }}</td>
-                        <td>{{ product.photo_status }}</td>
+                        <td>
+    <span class="status-badge status-{{ product.photo_status }}">
+        {{ product.photo_status }}
+    </span>
+
+    {% if product.photo_filename %}
+    <br>
+    <small>{{ product.photo_filename }}</small>
+    {% endif %}
+</td>
                     </tr>
                     {% endfor %}
                 </tbody>
