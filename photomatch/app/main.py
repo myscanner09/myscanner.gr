@@ -516,3 +516,57 @@ async def upload_product_photo(
             "message": f"Η φωτογραφία για το προϊόν '{product.item_name}' ανέβηκε επιτυχώς."
         }
     )
+
+@app.post("/admin/products/{product_id}/approve")
+def approve_product_photo(
+    product_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(request, db)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+
+    if not product:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    product.photo_status = "approved"
+    product.reject_reason = None
+
+    db.commit()
+
+    return RedirectResponse(
+        url=f"/projects/{product.project_id}",
+        status_code=302
+    )
+
+
+@app.post("/admin/products/{product_id}/reject")
+def reject_product_photo(
+    product_id: int,
+    request: Request,
+    reject_reason: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(request, db)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    product = db.query(Product).filter(Product.id == product_id).first()
+
+    if not product:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    product.photo_status = "rejected"
+    product.reject_reason = reject_reason or "Η φωτογραφία χρειάζεται επανάληψη."
+
+    db.commit()
+
+    return RedirectResponse(
+        url=f"/projects/{product.project_id}",
+        status_code=302
+    )
