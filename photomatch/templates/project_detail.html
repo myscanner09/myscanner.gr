@@ -65,9 +65,39 @@
 
 <section class="card" style="margin-top: 24px;">
     <h2>Προϊόντα</h2>
-    <p class="empty">
-        Στο επόμενο βήμα θα διαβάζουμε το Excel/CSV και θα εμφανίζουμε εδώ τα προϊόντα.
-    </p>
+
+    {% if project.products %}
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Barcode</th>
+                        <th>Item Name</th>
+                        <th>SKU</th>
+                        <th>Product ID</th>
+                        <th>Category</th>
+                        <th>Photo Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in project.products %}
+                    <tr>
+                        <td>{{ product.barcode or "-" }}</td>
+                        <td>{{ product.item_name }}</td>
+                        <td>{{ product.sku or "-" }}</td>
+                        <td>{{ product.product_id or "-" }}</td>
+                        <td>{{ product.category or "-" }}</td>
+                        <td>{{ product.photo_status }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty">
+            Δεν υπάρχουν ακόμα προϊόντα σε αυτό το project.
+        </p>
+    {% endif %}
 </section>
 
 {% endblock %}
