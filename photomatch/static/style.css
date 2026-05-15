@@ -412,3 +412,25 @@ select {
         grid-template-columns: 1fr;
     }
 }
+
+.photo-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.camera-button,
+.gallery-button {
+    text-align: center;
+    width: 100%;
+}
+
+.camera-button {
+    background: var(--primary);
+    color: white;
+}
+
+.gallery-button {
+    background: #eef2ff;
+    color: var(--primary);
+}
