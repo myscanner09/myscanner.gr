@@ -283,3 +283,56 @@ hr {
         grid-template-columns: 1fr;
     }
 }
+
+select {
+    width: 100%;
+    padding: 13px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    font-size: 15px;
+    background: white;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+}
+
+.info-grid div {
+    background: #f9fafb;
+    border-radius: 14px;
+    padding: 14px;
+}
+
+.info-grid span {
+    display: block;
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.info-grid strong {
+    font-size: 15px;
+}
+
+.table-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.table-link {
+    color: var(--primary);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.table-link:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 1100px) {
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+}
