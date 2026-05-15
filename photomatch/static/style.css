@@ -231,3 +231,55 @@ th {
         font-size: 13px;
     }
 }
+
+.secondary {
+    background: #eef2ff;
+    color: var(--primary);
+}
+
+.secondary:hover {
+    background: #e0e7ff;
+}
+
+.project-form {
+    gap: 18px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+}
+
+.upload-box {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    background: #f9fafb;
+}
+
+.notice {
+    padding: 14px;
+    background: #eef2ff;
+    color: #3730a3;
+    border-radius: 12px;
+    font-size: 14px;
+}
+
+code {
+    background: #f3f4f6;
+    padding: 4px 7px;
+    border-radius: 7px;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 12px 0;
+}
+
+@media (max-width: 900px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+}
