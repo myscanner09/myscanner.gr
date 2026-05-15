@@ -54,6 +54,11 @@
                         <div class="status-badge status-{{ product.photo_status }}">
                             {{ product.photo_status }}
                         </div>
+                        {% if product.photo_status == "rejected" and product.reject_reason %}
+<div class="reject-notice">
+    Απορρίφθηκε: {{ product.reject_reason }}
+</div>
+{% endif %}
 
                         {% if product.photo_filename %}
                         <p class="muted small-text">
