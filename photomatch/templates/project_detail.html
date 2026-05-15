@@ -79,6 +79,7 @@
                         <th>Product ID</th>
                         <th>Category</th>
                         <th>Photo Status</th>
+                        <th>Review</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -99,6 +100,40 @@
     <small>{{ product.photo_filename }}</small>
     {% endif %}
 </td>
+<td>
+    {% if product.photo_status == "uploaded" or product.photo_status == "rejected" %}
+        <div class="review-actions">
+            <form method="post" action="/admin/products/{{ product.id }}/approve">
+                <button type="submit" class="small-button approve-button">
+                    Approve
+                </button>
+            </form>
+
+            <form method="post" action="/admin/products/{{ product.id }}/reject" class="reject-form">
+                <input
+                    type="text"
+                    name="reject_reason"
+                    placeholder="Λόγος απόρριψης"
+                    value="{{ product.reject_reason or '' }}"
+                >
+                <button type="submit" class="small-button reject-button">
+                    Reject
+                </button>
+            </form>
+        </div>
+    {% elif product.photo_status == "approved" %}
+        <span class="approved-text">Εγκρίθηκε</span>
+    {% else %}
+        <span class="muted">Αναμονή φωτογραφίας</span>
+    {% endif %}
+
+    {% if product.reject_reason %}
+        <div class="reject-reason">
+            {{ product.reject_reason }}
+        </div>
+    {% endif %}
+</td>
+                        
                     </tr>
                     {% endfor %}
                 </tbody>
