@@ -336,3 +336,79 @@ select {
         grid-template-columns: 1fr;
     }
 }
+
+.product-upload-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.product-upload-card {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+    align-items: center;
+    border: 1px solid var(--border);
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 18px;
+}
+
+.product-main h3 {
+    margin: 0 0 8px 0;
+}
+
+.upload-photo-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 8px;
+}
+
+.status-missing {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-uploaded {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.status-approved {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-rejected {
+    background: #ffedd5;
+    color: #9a3412;
+}
+
+.success-message {
+    background: #dcfce7;
+    color: #166534;
+    padding: 14px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    font-weight: 700;
+}
+
+.small-text {
+    font-size: 13px;
+}
+
+@media (max-width: 900px) {
+    .product-upload-card {
+        grid-template-columns: 1fr;
+    }
+}
