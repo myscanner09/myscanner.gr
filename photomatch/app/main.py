@@ -59,7 +59,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # ============================================================
 
 COOKIE_NAME = "photomatch_user_email"
-COOKIE_MAX_AGE = 60 * 60 * 8  # 8 hours
+COOKIE_MAX_AGE = 60 * 60 * 8
 
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 
@@ -123,6 +123,22 @@ def count_project_products(db: Session, project_id: int):
     ).count()
 
     return total, uploaded, missing
+
+
+def render_template(
+    template_name: str,
+    request: Request,
+    context: dict
+):
+    """
+    Compatibility-safe TemplateResponse wrapper.
+    Prevents the tuple/dict error in newer Starlette/FastAPI.
+    """
+    return templates.TemplateResponse(
+        name=template_name,
+        request=request,
+        context=context
+    )
 
 
 # ============================================================
@@ -201,10 +217,10 @@ def home():
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse(
+    return render_template(
         "login.html",
+        request,
         {
-            "request": request,
             "app_name": settings.APP_NAME,
             "error": None,
             "user": None
@@ -222,10 +238,10 @@ def login_submit(
     user = db.query(User).filter(User.email == email.strip()).first()
 
     if not user or not verify_password(password, user.password_hash):
-        return templates.TemplateResponse(
+        return render_template(
             "login.html",
+            request,
             {
-                "request": request,
                 "app_name": settings.APP_NAME,
                 "error": "Λάθος email ή κωδικός.",
                 "user": None
@@ -264,10 +280,10 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 
     projects = db.query(Project).order_by(Project.created_at.desc()).all()
 
-    return templates.TemplateResponse(
+    return render_template(
         "dashboard.html",
+        request,
         {
-            "request": request,
             "app_name": settings.APP_NAME,
             "user": user,
             "projects": projects
@@ -282,10 +298,10 @@ def create_project_page(request: Request, db: Session = Depends(get_db)):
     if not user:
         return login_redirect()
 
-    return templates.TemplateResponse(
+    return render_template(
         "create_project.html",
+        request,
         {
-            "request": request,
             "app_name": settings.APP_NAME,
             "user": user,
             "error": None
@@ -312,10 +328,10 @@ async def preview_project_file(
         return login_redirect()
 
     if not product_file.filename:
-        return templates.TemplateResponse(
+        return render_template(
             "create_project.html",
+            request,
             {
-                "request": request,
                 "app_name": settings.APP_NAME,
                 "user": user,
                 "error": "Δεν επιλέχθηκε αρχείο."
@@ -325,10 +341,10 @@ async def preview_project_file(
     file_bytes = await product_file.read()
 
     if not file_bytes:
-        return templates.TemplateResponse(
+        return render_template(
             "create_project.html",
+            request,
             {
-                "request": request,
                 "app_name": settings.APP_NAME,
                 "user": user,
                 "error": "Το αρχείο είναι κενό."
@@ -338,10 +354,10 @@ async def preview_project_file(
     try:
         parsed = parse_uploaded_file(product_file.filename, file_bytes)
     except Exception as e:
-        return templates.TemplateResponse(
+        return render_template(
             "create_project.html",
+            request,
             {
-                "request": request,
                 "app_name": settings.APP_NAME,
                 "user": user,
                 "error": str(e)
@@ -360,10 +376,10 @@ async def preview_project_file(
     with open(temp_original_path, "wb") as f:
         f.write(file_bytes)
 
-    return templates.TemplateResponse(
+    return render_template(
         "preview_project.html",
+        request,
         {
-            "request": request,
             "app_name": settings.APP_NAME,
             "user": user,
             "temp_file_id": temp_file_id,
@@ -405,10 +421,10 @@ def create_project_final(
     temp_json_path = TEMP_DIR / f"{temp_file_id}.json"
 
     if not temp_json_path.exists():
-        return templates.TemplateResponse(
+        return render_template(
             "create_project.html",
+            request,
             {
-                "request": request,
                 "app_name": settings.APP_NAME,
                 "user": user,
                 "error": "Το προσωρινό αρχείο δεν βρέθηκε. Ανέβασε ξανά το αρχείο."
@@ -421,10 +437,10 @@ def create_project_final(
     rows = parsed.get("rows", [])
 
     if not rows:
-        return templates.TemplateResponse(
+        return render_template(
             "create_project.html",
+            request,
             {
-                "request": request,
                 "app_name": settings.APP_NAME,
                 "user": user,
                 "error": "Δεν βρέθηκαν προϊόντα στο αρχείο."
@@ -552,10 +568,10 @@ def project_detail_page(
 
     products_count = db.query(Product).filter(Product.project_id == project.id).count()
 
-    return templates.TemplateResponse(
+    return render_template(
         "project_detail.html",
+        request,
         {
-            "request": request,
             "app_name": settings.APP_NAME,
             "user": user,
             "project": project,
@@ -586,10 +602,10 @@ def store_upload_page(
 
     total_products, uploaded_products, missing_products = count_project_products(db, project.id)
 
-    return templates.TemplateResponse(
+    return render_template(
         "store_upload.html",
+        request,
         {
-            "request": request,
             "app_name": settings.APP_NAME,
             "user": None,
             "project": project,
@@ -631,14 +647,12 @@ async def upload_product_photo(
     file_bytes = await photo_file.read()
 
     if not file_bytes or len(file_bytes) == 0:
-        total_products = len(project.products)
-        uploaded_products = len([p for p in project.products if p.photo_status in ["uploaded", "approved"]])
-        missing_products = len([p for p in project.products if p.photo_status == "missing"])
+        total_products, uploaded_products, missing_products = count_project_products(db, project.id)
 
-        return templates.TemplateResponse(
-            name="store_upload.html",
-            request=request,
-            context={
+        return render_template(
+            "store_upload.html",
+            request,
+            {
                 "app_name": settings.APP_NAME,
                 "user": None,
                 "project": project,
@@ -650,23 +664,18 @@ async def upload_product_photo(
         )
 
     original_filename = photo_file.filename or "photo.jpg"
-    extension = original_filename.split(".")[-1].lower() if "." in original_filename else "jpg"
+    extension = get_file_extension(original_filename)
 
-    if extension not in ["jpg", "jpeg", "png", "webp"]:
+    if extension not in ALLOWED_IMAGE_EXTENSIONS:
         extension = "jpg"
 
-    safe_barcode = (product.barcode or "no_barcode").replace("/", "_").replace("\\", "_")
-    safe_product_id = (product.product_id or str(product.id)).replace("/", "_").replace("\\", "_")
-
-    safe_item_name = product.item_name[:50]
-    safe_item_name = "".join(
-        c if c.isalnum() or c in [" ", "_", "-"] else "_"
-        for c in safe_item_name
-    ).strip().replace(" ", "_")
+    safe_barcode = sanitize_filename_part(product.barcode or "no_barcode", max_length=80)
+    safe_product_id = sanitize_filename_part(product.product_id or str(product.id), max_length=80)
+    safe_item_name = sanitize_filename_part(product.item_name, max_length=80)
 
     final_filename = f"{safe_barcode}_{safe_product_id}_{safe_item_name}.{extension}"
 
-    photos_dir = DATA_DIR / "uploads" / "photos" / str(project.id)
+    photos_dir = PHOTOS_DIR / str(project.id)
     photos_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = photos_dir / final_filename
@@ -702,7 +711,8 @@ async def upload_product_photo(
             drive_file_url = uploaded_drive_file.get("webViewLink")
 
             try:
-                make_file_public(drive_file_id)
+                if drive_file_id:
+                    make_file_public(drive_file_id)
             except Exception as permission_error:
                 print("ERROR making Drive file public:", str(permission_error))
 
@@ -717,14 +727,12 @@ async def upload_product_photo(
 
     db.commit()
 
-    total_products = len(project.products)
-    uploaded_products = len([p for p in project.products if p.photo_status in ["uploaded", "approved"]])
-    missing_products = len([p for p in project.products if p.photo_status == "missing"])
+    total_products, uploaded_products, missing_products = count_project_products(db, project.id)
 
-    return templates.TemplateResponse(
-        name="store_upload.html",
-        request=request,
-        context={
+    return render_template(
+        "store_upload.html",
+        request,
+        {
             "app_name": settings.APP_NAME,
             "user": None,
             "project": project,
