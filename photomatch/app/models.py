@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 
@@ -13,9 +14,14 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
-    role = Column(String(50), default="admin")
+    role = Column(String(50), default="admin", nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    projects = relationship(
+        "Project",
+        back_populates="creator"
+    )
 
 
 class Project(Base):
@@ -34,14 +40,28 @@ class Project(Base):
     drive_folder_id = Column(String(255), nullable=True)
     drive_folder_url = Column(Text, nullable=True)
 
-    status = Column(String(50), default="active")
+    status = Column(String(50), default="active", nullable=False)
 
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False
+    )
 
-    products = relationship("Product", back_populates="project")
+    creator = relationship(
+        "User",
+        back_populates="projects"
+    )
+
+    products = relationship(
+        "Product",
+        back_populates="project",
+        cascade="all, delete-orphan"
+    )
 
 
 class Product(Base):
@@ -57,7 +77,7 @@ class Product(Base):
     product_id = Column(String(255), nullable=True)
     category = Column(String(255), nullable=True)
 
-    photo_status = Column(String(50), default="missing")
+    photo_status = Column(String(50), default="missing", nullable=False)
 
     photo_filename = Column(String(255), nullable=True)
     photo_drive_file_id = Column(String(255), nullable=True)
@@ -65,7 +85,15 @@ class Product(Base):
 
     reject_reason = Column(Text, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False
+    )
 
-    project = relationship("Project", back_populates="products")
+    project = relationship(
+        "Project",
+        back_populates="products"
+    )
