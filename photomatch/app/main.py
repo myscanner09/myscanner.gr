@@ -15,6 +15,7 @@ from app.models import User, Project, Product
 import json
 import secrets
 from app.file_parser import parse_uploaded_file
+from app.drive_service import create_folder, upload_bytes_to_drive, make_file_public, safe_drive_folder_name
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -360,7 +361,20 @@ def create_project_final(
 
     rows = parsed.get("rows", [])
 
-    project_token = secrets.token_urlsafe(12)
+        project_token = secrets.token_urlsafe(12)
+
+    drive_folder_id = None
+    drive_folder_url = None
+
+    try:
+        folder_name = safe_drive_folder_name(store_name, salesforce_grid)
+        drive_folder = create_folder(folder_name)
+
+        drive_folder_id = drive_folder.get("id")
+        drive_folder_url = drive_folder.get("webViewLink")
+
+    except Exception as e:
+        print("ERROR creating Drive folder:", str(e))
 
     new_project = Project(
         project_token=project_token,
@@ -368,6 +382,8 @@ def create_project_final(
         store_email=store_email,
         salesforce_grid=salesforce_grid,
         original_filename=original_filename,
+        drive_folder_id=drive_folder_id,
+        drive_folder_url=drive_folder_url,
         status="active",
         created_by=user.id
     )
@@ -375,6 +391,30 @@ def create_project_final(
     db.add(new_project)
     db.commit()
     db.refresh(new_project)
+
+    # Upload original Excel/CSV to Google Drive folder
+    try:
+        temp_dir = DATA_DIR / "temp"
+
+        matching_files = list(temp_dir.glob(f"{temp_file_id}_*"))
+
+        if matching_files and new_project.drive_folder_id:
+            original_path = matching_files[0]
+
+            with open(original_path, "rb") as f:
+                original_bytes = f.read()
+
+            uploaded_original = upload_bytes_to_drive(
+                file_bytes=original_bytes,
+                filename=original_filename,
+                mime_type="application/octet-stream",
+                folder_id=new_project.drive_folder_id
+            )
+
+            print("Original file uploaded to Drive:", uploaded_original.get("webViewLink"))
+
+    except Exception as e:
+        print("ERROR uploading original file to Drive:", str(e))
 
     created_products = 0
 
@@ -492,10 +532,33 @@ async def upload_product_photo(
     with open(file_path, "wb") as f:
         f.write(file_bytes)
 
+    drive_file_id = None
+    drive_file_url = None
+
+    try:
+        if project.drive_folder_id:
+            uploaded_drive_file = upload_bytes_to_drive(
+                file_bytes=file_bytes,
+                filename=final_filename,
+                mime_type=photo_file.content_type or "image/jpeg",
+                folder_id=project.drive_folder_id
+            )
+
+            drive_file_id = uploaded_drive_file.get("id")
+            drive_file_url = uploaded_drive_file.get("webViewLink")
+
+            try:
+                make_file_public(drive_file_id)
+            except Exception as permission_error:
+                print("ERROR making Drive file public:", str(permission_error))
+
+    except Exception as e:
+        print("ERROR uploading photo to Drive:", str(e))
+
     product.photo_status = "uploaded"
     product.photo_filename = final_filename
-    product.photo_drive_file_id = None
-    product.photo_drive_url = None
+    product.photo_drive_file_id = drive_file_id
+    product.photo_drive_url = drive_file_url
 
     db.commit()
 
