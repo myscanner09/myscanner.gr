@@ -14,6 +14,11 @@ class Settings:
     ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "admin@photomatch.local")
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin123")
     ADMIN_NAME: str = os.getenv("ADMIN_NAME", "PhotoMatch Admin")
+    
+    GOOGLE_DRIVE_PARENT_FOLDER_ID: str = os.getenv("GOOGLE_DRIVE_PARENT_FOLDER_ID", "")
+    GOOGLE_SERVICE_ACCOUNT_JSON: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+
+
 
 
 settings = Settings()
