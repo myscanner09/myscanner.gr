@@ -609,9 +609,7 @@ async def upload_product_photo(
     photo_file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    project = db.query(Project).filter(
-        Project.project_token == project_token
-    ).first()
+    project = db.query(Project).filter(Project.project_token == project_token).first()
 
     if not project:
         return HTMLResponse(
@@ -630,57 +628,63 @@ async def upload_product_photo(
             status_code=404
         )
 
-    original_filename = photo_file.filename or "photo.jpg"
-    extension = get_file_extension(original_filename)
-
-    if extension not in ALLOWED_IMAGE_EXTENSIONS:
-        total_products, uploaded_products, missing_products = count_project_products(db, project.id)
-
-        return templates.TemplateResponse(
-            "store_upload.html",
-            {
-                "request": request,
-                "app_name": settings.APP_NAME,
-                "user": None,
-                "project": project,
-                "total_products": total_products,
-                "uploaded_products": uploaded_products,
-                "missing_products": missing_products,
-                "message": "Επιτρέπονται μόνο εικόνες JPG, JPEG, PNG ή WEBP."
-            }
-        )
-
     file_bytes = await photo_file.read()
 
-    if not file_bytes:
-        total_products, uploaded_products, missing_products = count_project_products(db, project.id)
+    if not file_bytes or len(file_bytes) == 0:
+        total_products = len(project.products)
+        uploaded_products = len([p for p in project.products if p.photo_status in ["uploaded", "approved"]])
+        missing_products = len([p for p in project.products if p.photo_status == "missing"])
 
         return templates.TemplateResponse(
-            "store_upload.html",
-            {
-                "request": request,
+            name="store_upload.html",
+            request=request,
+            context={
                 "app_name": settings.APP_NAME,
                 "user": None,
                 "project": project,
                 "total_products": total_products,
                 "uploaded_products": uploaded_products,
                 "missing_products": missing_products,
-                "message": "Το αρχείο φωτογραφίας είναι κενό."
+                "message": "Δεν ανέβηκε σωστά η φωτογραφία. Δοκίμασε ξανά."
             }
         )
 
-    project_photos_dir = PHOTOS_DIR / str(project.id)
-    project_photos_dir.mkdir(parents=True, exist_ok=True)
+    original_filename = photo_file.filename or "photo.jpg"
+    extension = original_filename.split(".")[-1].lower() if "." in original_filename else "jpg"
 
-    safe_barcode = sanitize_filename_part(product.barcode or "no_barcode", max_length=60)
-    safe_product_id = sanitize_filename_part(product.product_id or str(product.id), max_length=60)
-    safe_item_name = sanitize_filename_part(product.item_name, max_length=80)
+    if extension not in ["jpg", "jpeg", "png", "webp"]:
+        extension = "jpg"
+
+    safe_barcode = (product.barcode or "no_barcode").replace("/", "_").replace("\\", "_")
+    safe_product_id = (product.product_id or str(product.id)).replace("/", "_").replace("\\", "_")
+
+    safe_item_name = product.item_name[:50]
+    safe_item_name = "".join(
+        c if c.isalnum() or c in [" ", "_", "-"] else "_"
+        for c in safe_item_name
+    ).strip().replace(" ", "_")
 
     final_filename = f"{safe_barcode}_{safe_product_id}_{safe_item_name}.{extension}"
-    file_path = project_photos_dir / final_filename
+
+    photos_dir = DATA_DIR / "uploads" / "photos" / str(project.id)
+    photos_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = photos_dir / final_filename
 
     with open(file_path, "wb") as f:
         f.write(file_bytes)
+
+    mime_type = photo_file.content_type
+
+    if not mime_type or not mime_type.startswith("image/"):
+        if extension in ["jpg", "jpeg"]:
+            mime_type = "image/jpeg"
+        elif extension == "png":
+            mime_type = "image/png"
+        elif extension == "webp":
+            mime_type = "image/webp"
+        else:
+            mime_type = "image/jpeg"
 
     drive_file_id = None
     drive_file_url = None
@@ -690,18 +694,17 @@ async def upload_product_photo(
             uploaded_drive_file = upload_bytes_to_drive(
                 file_bytes=file_bytes,
                 filename=final_filename,
-                mime_type=photo_file.content_type or "image/jpeg",
+                mime_type=mime_type,
                 folder_id=project.drive_folder_id
             )
 
             drive_file_id = uploaded_drive_file.get("id")
             drive_file_url = uploaded_drive_file.get("webViewLink")
 
-            if drive_file_id:
-                try:
-                    make_file_public(drive_file_id)
-                except Exception as permission_error:
-                    print("ERROR making Drive file public:", str(permission_error))
+            try:
+                make_file_public(drive_file_id)
+            except Exception as permission_error:
+                print("ERROR making Drive file public:", str(permission_error))
 
     except Exception as e:
         print("ERROR uploading photo to Drive:", str(e))
@@ -710,15 +713,18 @@ async def upload_product_photo(
     product.photo_filename = final_filename
     product.photo_drive_file_id = drive_file_id
     product.photo_drive_url = drive_file_url
+    product.reject_reason = None
 
     db.commit()
 
-    total_products, uploaded_products, missing_products = count_project_products(db, project.id)
+    total_products = len(project.products)
+    uploaded_products = len([p for p in project.products if p.photo_status in ["uploaded", "approved"]])
+    missing_products = len([p for p in project.products if p.photo_status == "missing"])
 
     return templates.TemplateResponse(
-        "store_upload.html",
-        {
-            "request": request,
+        name="store_upload.html",
+        request=request,
+        context={
             "app_name": settings.APP_NAME,
             "user": None,
             "project": project,
