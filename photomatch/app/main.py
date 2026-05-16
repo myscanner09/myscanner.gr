@@ -1,7 +1,9 @@
 from pathlib import Path
+import json
+import secrets
 
 from fastapi import FastAPI, Request, Form, Depends, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -11,11 +13,13 @@ from passlib.context import CryptContext
 from app.config import settings
 from app.database import Base, engine, get_db
 from app.models import User, Project, Product
-
-import json
-import secrets
 from app.file_parser import parse_uploaded_file
-from app.drive_service import create_folder, upload_bytes_to_drive, make_file_public, safe_drive_folder_name
+from app.drive_service import (
+    create_folder,
+    upload_bytes_to_drive,
+    make_file_public,
+    safe_drive_folder_name
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -174,6 +178,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         }
     )
 
+
 @app.get("/projects/create", response_class=HTMLResponse)
 def create_project_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
@@ -186,90 +191,11 @@ def create_project_page(request: Request, db: Session = Depends(get_db)):
         request=request,
         context={
             "app_name": settings.APP_NAME,
-            "user": user
-        }
-    )
-
-
-@app.post("/projects/create")
-async def create_project_submit(
-    request: Request,
-    store_name: str = Form(...),
-    store_email: str = Form(None),
-    salesforce_grid: str = Form(None),
-    product_file: UploadFile = File(...),
-    db: Session = Depends(get_db)
-):
-    user = get_current_user(request, db)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=302)
-
-    # Προσωρινή απλή αποθήκευση αρχείου στο Render filesystem.
-    # Στο επόμενο βήμα θα το διαβάζουμε και μετά θα το στέλνουμε Google Drive.
-    uploads_dir = DATA_DIR / "uploads"
-    uploads_dir.mkdir(exist_ok=True)
-
-    safe_filename = product_file.filename.replace(" ", "_")
-    file_path = uploads_dir / safe_filename
-
-    file_bytes = await product_file.read()
-
-    with open(file_path, "wb") as f:
-        f.write(file_bytes)
-
-    import secrets
-
-    project_token = secrets.token_urlsafe(12)
-
-    new_project = Project(
-        project_token=project_token,
-        store_name=store_name,
-        store_email=store_email,
-        salesforce_grid=salesforce_grid,
-        original_filename=product_file.filename,
-        status="active",
-        created_by=user.id
-    )
-
-    db.add(new_project)
-    db.commit()
-    db.refresh(new_project)
-
-    return RedirectResponse(
-        url=f"/projects/{new_project.id}",
-        status_code=302
-    )
-
-
-@app.get("/projects/{project_id}", response_class=HTMLResponse)
-def project_detail_page(
-    project_id: int,
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    user = get_current_user(request, db)
-
-    if not user:
-        return RedirectResponse(url="/login", status_code=302)
-
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    if not project:
-        return RedirectResponse(url="/dashboard", status_code=302)
-
-    products_count = len(project.products)
-
-    return templates.TemplateResponse(
-        name="project_detail.html",
-        request=request,
-        context={
-            "app_name": settings.APP_NAME,
             "user": user,
-            "project": project,
-            "products_count": products_count
+            "error": None
         }
     )
+
 
 @app.post("/projects/preview", response_class=HTMLResponse)
 async def preview_project_file(
@@ -304,8 +230,10 @@ async def preview_project_file(
     temp_dir.mkdir(exist_ok=True)
 
     temp_file_id = secrets.token_urlsafe(12)
+    safe_original_name = product_file.filename.replace(" ", "_")
+
     temp_json_path = temp_dir / f"{temp_file_id}.json"
-    temp_original_path = temp_dir / f"{temp_file_id}_{product_file.filename.replace(' ', '_')}"
+    temp_original_path = temp_dir / f"{temp_file_id}_{safe_original_name}"
 
     with open(temp_json_path, "w", encoding="utf-8") as f:
         json.dump(parsed, f, ensure_ascii=False)
@@ -361,7 +289,7 @@ def create_project_final(
 
     rows = parsed.get("rows", [])
 
-        project_token = secrets.token_urlsafe(12)
+    project_token = secrets.token_urlsafe(12)
 
     drive_folder_id = None
     drive_folder_url = None
@@ -392,10 +320,8 @@ def create_project_final(
     db.commit()
     db.refresh(new_project)
 
-    # Upload original Excel/CSV to Google Drive folder
     try:
         temp_dir = DATA_DIR / "temp"
-
         matching_files = list(temp_dir.glob(f"{temp_file_id}_*"))
 
         if matching_files and new_project.drive_folder_id:
@@ -448,6 +374,37 @@ def create_project_final(
         url=f"/projects/{new_project.id}",
         status_code=302
     )
+
+
+@app.get("/projects/{project_id}", response_class=HTMLResponse)
+def project_detail_page(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    user = get_current_user(request, db)
+
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    products_count = len(project.products)
+
+    return templates.TemplateResponse(
+        name="project_detail.html",
+        request=request,
+        context={
+            "app_name": settings.APP_NAME,
+            "user": user,
+            "project": project,
+            "products_count": products_count
+        }
+    )
+
 
 @app.get("/store/{project_token}", response_class=HTMLResponse)
 def store_upload_page(
@@ -579,6 +536,7 @@ async def upload_product_photo(
             "message": f"Η φωτογραφία για το προϊόν '{product.item_name}' ανέβηκε επιτυχώς."
         }
     )
+
 
 @app.post("/admin/products/{product_id}/approve")
 def approve_product_photo(
