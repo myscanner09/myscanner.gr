@@ -50,6 +50,18 @@
                 <td>{{ project.original_filename or "-" }}</td>
             </tr>
             <tr>
+    <th>Drive Folder</th>
+    <td>
+        {% if project.drive_folder_url %}
+            <a class="table-link" href="{{ project.drive_folder_url }}" target="_blank">
+                Άνοιγμα φακέλου Drive
+            </a>
+        {% else %}
+            -
+        {% endif %}
+    </td>
+</tr>
+            <tr>
                 <th>Project Token</th>
                 <td><code>{{ project.project_token }}</code></td>
             </tr>
@@ -96,9 +108,16 @@
     </span>
 
     {% if product.photo_filename %}
-    <br>
-    <small>{{ product.photo_filename }}</small>
-    {% endif %}
+<br>
+<small>{{ product.photo_filename }}</small>
+{% endif %}
+
+{% if product.photo_drive_url %}
+<br>
+<a class="table-link" href="{{ product.photo_drive_url }}" target="_blank">
+    Άνοιγμα φωτογραφίας
+</a>
+{% endif %}
 </td>
 <td>
     {% if product.photo_status == "uploaded" or product.photo_status == "rejected" %}
