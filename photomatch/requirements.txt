@@ -9,3 +9,4 @@ bcrypt==4.0.1
 itsdangerous
 openpyxl
 pandas
+psycopg2-binary
