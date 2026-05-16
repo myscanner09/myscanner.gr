@@ -61,10 +61,18 @@
 {% endif %}
 
                         {% if product.photo_filename %}
-                        <p class="muted small-text">
-                            Αρχείο: {{ product.photo_filename }}
-                        </p>
-                        {% endif %}
+<p class="muted small-text">
+    Αρχείο: {{ product.photo_filename }}
+</p>
+{% endif %}
+
+{% if product.photo_drive_url %}
+<p class="small-text">
+    <a class="table-link" href="{{ product.photo_drive_url }}" target="_blank">
+        Προβολή ανεβασμένης φωτογραφίας
+    </a>
+</p>
+{% endif %}
                     </div>
                 </div>
 
