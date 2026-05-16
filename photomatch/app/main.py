@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 import secrets
+import re
 
 from fastapi import FastAPI, Request, Form, Depends, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -22,14 +23,26 @@ from app.drive_service import (
 )
 
 
+# ============================================================
+# PATHS
+# ============================================================
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
+TEMP_DIR = DATA_DIR / "temp"
+UPLOADS_DIR = DATA_DIR / "uploads"
+PHOTOS_DIR = UPLOADS_DIR / "photos"
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"
 
 DATA_DIR.mkdir(exist_ok=True)
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
 
-Base.metadata.create_all(bind=engine)
+
+# ============================================================
+# APP SETUP
+# ============================================================
 
 app = FastAPI(title=settings.APP_NAME)
 
@@ -41,6 +54,16 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+# ============================================================
+# SECURITY HELPERS
+# ============================================================
+
+COOKIE_NAME = "photomatch_user_email"
+COOKIE_MAX_AGE = 60 * 60 * 8  # 8 hours
+
+ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -49,11 +72,71 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
     return pwd_context.verify(plain_password, password_hash)
 
 
+def login_redirect():
+    return RedirectResponse(url="/login", status_code=302)
+
+
+def dashboard_redirect():
+    return RedirectResponse(url="/dashboard", status_code=302)
+
+
+def get_current_user(request: Request, db: Session):
+    user_email = request.cookies.get(COOKIE_NAME)
+
+    if not user_email:
+        return None
+
+    return db.query(User).filter(User.email == user_email).first()
+
+
+def sanitize_filename_part(value: str, max_length: int = 80) -> str:
+    if not value:
+        return "unknown"
+
+    value = str(value).strip()
+    value = value[:max_length]
+    value = re.sub(r"[^\w\s\-Α-Ωα-ωΆ-Ώά-ώ]", "_", value, flags=re.UNICODE)
+    value = re.sub(r"\s+", "_", value)
+    value = value.strip("_")
+
+    return value or "unknown"
+
+
+def get_file_extension(filename: str, default: str = "jpg") -> str:
+    if not filename or "." not in filename:
+        return default
+
+    return filename.rsplit(".", 1)[-1].lower().strip()
+
+
+def count_project_products(db: Session, project_id: int):
+    total = db.query(Product).filter(Product.project_id == project_id).count()
+
+    uploaded = db.query(Product).filter(
+        Product.project_id == project_id,
+        Product.photo_status.in_(["uploaded", "approved"])
+    ).count()
+
+    missing = db.query(Product).filter(
+        Product.project_id == project_id,
+        Product.photo_status == "missing"
+    ).count()
+
+    return total, uploaded, missing
+
+
+# ============================================================
+# DATABASE STARTUP
+# ============================================================
+
 def create_default_admin():
-    db = next(get_db())
+    db_generator = get_db()
+    db = next(db_generator)
 
     try:
-        existing_user = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
+        existing_user = db.query(User).filter(
+            User.email == settings.ADMIN_EMAIL
+        ).first()
 
         if existing_user:
             return
@@ -68,19 +151,31 @@ def create_default_admin():
         db.add(admin_user)
         db.commit()
 
+        print("Default admin created:", settings.ADMIN_EMAIL)
+
     except Exception as e:
         db.rollback()
         print("ERROR creating default admin:", str(e))
 
     finally:
-        db.close()
+        try:
+            db_generator.close()
+        except Exception:
+            pass
 
 
-try:
-    create_default_admin()
-except Exception as e:
-    print("STARTUP ERROR creating default admin:", str(e))
+@app.on_event("startup")
+def startup_event():
+    try:
+        Base.metadata.create_all(bind=engine)
+        create_default_admin()
+    except Exception as e:
+        print("STARTUP ERROR:", str(e))
 
+
+# ============================================================
+# HEALTH
+# ============================================================
 
 @app.get("/health")
 def health():
@@ -95,6 +190,10 @@ def health():
     }
 
 
+# ============================================================
+# AUTH ROUTES
+# ============================================================
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     return RedirectResponse(url="/login", status_code=302)
@@ -103,9 +202,9 @@ def home():
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse(
-        name="login.html",
-        request=request,
-        context={
+        "login.html",
+        {
+            "request": request,
             "app_name": settings.APP_NAME,
             "error": None,
             "user": None
@@ -120,13 +219,13 @@ def login_submit(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.email == email.strip()).first()
 
     if not user or not verify_password(password, user.password_hash):
         return templates.TemplateResponse(
-            name="login.html",
-            request=request,
-            context={
+            "login.html",
+            {
+                "request": request,
                 "app_name": settings.APP_NAME,
                 "error": "Λάθος email ή κωδικός.",
                 "user": None
@@ -135,43 +234,40 @@ def login_submit(
 
     response = RedirectResponse(url="/dashboard", status_code=302)
     response.set_cookie(
-        key="photomatch_user_email",
+        key=COOKIE_NAME,
         value=user.email,
         httponly=True,
-        max_age=60 * 60 * 8
+        max_age=COOKIE_MAX_AGE,
+        samesite="lax"
     )
+
     return response
 
 
 @app.get("/logout")
 def logout():
     response = RedirectResponse(url="/login", status_code=302)
-    response.delete_cookie("photomatch_user_email")
+    response.delete_cookie(COOKIE_NAME)
     return response
 
 
-def get_current_user(request: Request, db: Session):
-    user_email = request.cookies.get("photomatch_user_email")
-
-    if not user_email:
-        return None
-
-    return db.query(User).filter(User.email == user_email).first()
-
+# ============================================================
+# ADMIN / DASHBOARD
+# ============================================================
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
 
     if not user:
-        return RedirectResponse(url="/login", status_code=302)
+        return login_redirect()
 
     projects = db.query(Project).order_by(Project.created_at.desc()).all()
 
     return templates.TemplateResponse(
-        name="dashboard.html",
-        request=request,
-        context={
+        "dashboard.html",
+        {
+            "request": request,
             "app_name": settings.APP_NAME,
             "user": user,
             "projects": projects
@@ -184,18 +280,22 @@ def create_project_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
 
     if not user:
-        return RedirectResponse(url="/login", status_code=302)
+        return login_redirect()
 
     return templates.TemplateResponse(
-        name="create_project.html",
-        request=request,
-        context={
+        "create_project.html",
+        {
+            "request": request,
             "app_name": settings.APP_NAME,
             "user": user,
             "error": None
         }
     )
 
+
+# ============================================================
+# PROJECT PREVIEW
+# ============================================================
 
 @app.post("/projects/preview", response_class=HTMLResponse)
 async def preview_project_file(
@@ -209,31 +309,50 @@ async def preview_project_file(
     user = get_current_user(request, db)
 
     if not user:
-        return RedirectResponse(url="/login", status_code=302)
+        return login_redirect()
+
+    if not product_file.filename:
+        return templates.TemplateResponse(
+            "create_project.html",
+            {
+                "request": request,
+                "app_name": settings.APP_NAME,
+                "user": user,
+                "error": "Δεν επιλέχθηκε αρχείο."
+            }
+        )
 
     file_bytes = await product_file.read()
+
+    if not file_bytes:
+        return templates.TemplateResponse(
+            "create_project.html",
+            {
+                "request": request,
+                "app_name": settings.APP_NAME,
+                "user": user,
+                "error": "Το αρχείο είναι κενό."
+            }
+        )
 
     try:
         parsed = parse_uploaded_file(product_file.filename, file_bytes)
     except Exception as e:
         return templates.TemplateResponse(
-            name="create_project.html",
-            request=request,
-            context={
+            "create_project.html",
+            {
+                "request": request,
                 "app_name": settings.APP_NAME,
                 "user": user,
                 "error": str(e)
             }
         )
 
-    temp_dir = DATA_DIR / "temp"
-    temp_dir.mkdir(exist_ok=True)
-
     temp_file_id = secrets.token_urlsafe(12)
-    safe_original_name = product_file.filename.replace(" ", "_")
+    safe_original_name = sanitize_filename_part(product_file.filename, max_length=120)
 
-    temp_json_path = temp_dir / f"{temp_file_id}.json"
-    temp_original_path = temp_dir / f"{temp_file_id}_{safe_original_name}"
+    temp_json_path = TEMP_DIR / f"{temp_file_id}.json"
+    temp_original_path = TEMP_DIR / f"{temp_file_id}_{safe_original_name}"
 
     with open(temp_json_path, "w", encoding="utf-8") as f:
         json.dump(parsed, f, ensure_ascii=False)
@@ -242,9 +361,9 @@ async def preview_project_file(
         f.write(file_bytes)
 
     return templates.TemplateResponse(
-        name="preview_project.html",
-        request=request,
-        context={
+        "preview_project.html",
+        {
+            "request": request,
             "app_name": settings.APP_NAME,
             "user": user,
             "temp_file_id": temp_file_id,
@@ -252,12 +371,16 @@ async def preview_project_file(
             "store_email": store_email,
             "salesforce_grid": salesforce_grid,
             "original_filename": product_file.filename,
-            "columns": parsed["columns"],
-            "preview_rows": parsed["preview_rows"],
-            "total_rows": parsed["total_rows"]
+            "columns": parsed.get("columns", []),
+            "preview_rows": parsed.get("preview_rows", []),
+            "total_rows": parsed.get("total_rows", 0)
         }
     )
 
+
+# ============================================================
+# CREATE PROJECT FINAL
+# ============================================================
 
 @app.post("/projects/create/final")
 def create_project_final(
@@ -277,19 +400,38 @@ def create_project_final(
     user = get_current_user(request, db)
 
     if not user:
-        return RedirectResponse(url="/login", status_code=302)
+        return login_redirect()
 
-    temp_json_path = DATA_DIR / "temp" / f"{temp_file_id}.json"
+    temp_json_path = TEMP_DIR / f"{temp_file_id}.json"
 
     if not temp_json_path.exists():
-        return RedirectResponse(url="/projects/create", status_code=302)
+        return templates.TemplateResponse(
+            "create_project.html",
+            {
+                "request": request,
+                "app_name": settings.APP_NAME,
+                "user": user,
+                "error": "Το προσωρινό αρχείο δεν βρέθηκε. Ανέβασε ξανά το αρχείο."
+            }
+        )
 
     with open(temp_json_path, "r", encoding="utf-8") as f:
         parsed = json.load(f)
 
     rows = parsed.get("rows", [])
 
-    project_token = secrets.token_urlsafe(12)
+    if not rows:
+        return templates.TemplateResponse(
+            "create_project.html",
+            {
+                "request": request,
+                "app_name": settings.APP_NAME,
+                "user": user,
+                "error": "Δεν βρέθηκαν προϊόντα στο αρχείο."
+            }
+        )
+
+    project_token = secrets.token_urlsafe(16)
 
     drive_folder_id = None
     drive_folder_url = None
@@ -306,9 +448,9 @@ def create_project_final(
 
     new_project = Project(
         project_token=project_token,
-        store_name=store_name,
-        store_email=store_email,
-        salesforce_grid=salesforce_grid,
+        store_name=store_name.strip(),
+        store_email=store_email.strip() if store_email else None,
+        salesforce_grid=salesforce_grid.strip() if salesforce_grid else None,
         original_filename=original_filename,
         drive_folder_id=drive_folder_id,
         drive_folder_url=drive_folder_url,
@@ -320,9 +462,9 @@ def create_project_final(
     db.commit()
     db.refresh(new_project)
 
+    # Upload original Excel/CSV to Drive folder
     try:
-        temp_dir = DATA_DIR / "temp"
-        matching_files = list(temp_dir.glob(f"{temp_file_id}_*"))
+        matching_files = list(TEMP_DIR.glob(f"{temp_file_id}_*"))
 
         if matching_files and new_project.drive_folder_id:
             original_path = matching_files[0]
@@ -350,13 +492,18 @@ def create_project_final(
         if not item_name:
             continue
 
+        barcode = str(row.get(barcode_column, "")).strip() if barcode_column else None
+        sku = str(row.get(sku_column, "")).strip() if sku_column else None
+        product_id_value = str(row.get(product_id_column, "")).strip() if product_id_column else None
+        category = str(row.get(category_column, "")).strip() if category_column else None
+
         product = Product(
             project_id=new_project.id,
-            barcode=str(row.get(barcode_column, "")).strip() if barcode_column else None,
+            barcode=barcode or None,
             item_name=item_name,
-            sku=str(row.get(sku_column, "")).strip() if sku_column else None,
-            product_id=str(row.get(product_id_column, "")).strip() if product_id_column else None,
-            category=str(row.get(category_column, "")).strip() if category_column else None,
+            sku=sku or None,
+            product_id=product_id_value or None,
+            category=category or None,
             photo_status="missing"
         )
 
@@ -365,16 +512,27 @@ def create_project_final(
 
     db.commit()
 
+    print(f"Created project {new_project.id} with {created_products} products.")
+
+    # Cleanup temp files
     try:
-        temp_json_path.unlink()
-    except Exception:
-        pass
+        temp_json_path.unlink(missing_ok=True)
+
+        for temp_file in TEMP_DIR.glob(f"{temp_file_id}_*"):
+            temp_file.unlink(missing_ok=True)
+
+    except Exception as e:
+        print("ERROR cleaning temp files:", str(e))
 
     return RedirectResponse(
         url=f"/projects/{new_project.id}",
         status_code=302
     )
 
+
+# ============================================================
+# PROJECT DETAIL
+# ============================================================
 
 @app.get("/projects/{project_id}", response_class=HTMLResponse)
 def project_detail_page(
@@ -385,19 +543,19 @@ def project_detail_page(
     user = get_current_user(request, db)
 
     if not user:
-        return RedirectResponse(url="/login", status_code=302)
+        return login_redirect()
 
     project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
-        return RedirectResponse(url="/dashboard", status_code=302)
+        return dashboard_redirect()
 
-    products_count = len(project.products)
+    products_count = db.query(Product).filter(Product.project_id == project.id).count()
 
     return templates.TemplateResponse(
-        name="project_detail.html",
-        request=request,
-        context={
+        "project_detail.html",
+        {
+            "request": request,
             "app_name": settings.APP_NAME,
             "user": user,
             "project": project,
@@ -406,13 +564,19 @@ def project_detail_page(
     )
 
 
+# ============================================================
+# STORE PUBLIC UPLOAD PAGE
+# ============================================================
+
 @app.get("/store/{project_token}", response_class=HTMLResponse)
 def store_upload_page(
     project_token: str,
     request: Request,
     db: Session = Depends(get_db)
 ):
-    project = db.query(Project).filter(Project.project_token == project_token).first()
+    project = db.query(Project).filter(
+        Project.project_token == project_token
+    ).first()
 
     if not project:
         return HTMLResponse(
@@ -420,14 +584,12 @@ def store_upload_page(
             status_code=404
         )
 
-    total_products = len(project.products)
-    uploaded_products = len([p for p in project.products if p.photo_status in ["uploaded", "approved"]])
-    missing_products = len([p for p in project.products if p.photo_status == "missing"])
+    total_products, uploaded_products, missing_products = count_project_products(db, project.id)
 
     return templates.TemplateResponse(
-        name="store_upload.html",
-        request=request,
-        context={
+        "store_upload.html",
+        {
+            "request": request,
             "app_name": settings.APP_NAME,
             "user": None,
             "project": project,
@@ -447,7 +609,9 @@ async def upload_product_photo(
     photo_file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    project = db.query(Project).filter(Project.project_token == project_token).first()
+    project = db.query(Project).filter(
+        Project.project_token == project_token
+    ).first()
 
     if not project:
         return HTMLResponse(
@@ -466,25 +630,54 @@ async def upload_product_photo(
             status_code=404
         )
 
-    photos_dir = DATA_DIR / "uploads" / "photos" / str(project.id)
-    photos_dir.mkdir(parents=True, exist_ok=True)
-
     original_filename = photo_file.filename or "photo.jpg"
-    extension = original_filename.split(".")[-1].lower() if "." in original_filename else "jpg"
+    extension = get_file_extension(original_filename)
 
-    safe_barcode = (product.barcode or "no_barcode").replace("/", "_").replace("\\", "_")
-    safe_product_id = (product.product_id or str(product.id)).replace("/", "_").replace("\\", "_")
+    if extension not in ALLOWED_IMAGE_EXTENSIONS:
+        total_products, uploaded_products, missing_products = count_project_products(db, project.id)
 
-    safe_item_name = product.item_name[:50]
-    safe_item_name = "".join(
-        c if c.isalnum() or c in [" ", "_", "-"] else "_"
-        for c in safe_item_name
-    ).strip().replace(" ", "_")
-
-    final_filename = f"{safe_barcode}_{safe_product_id}_{safe_item_name}.{extension}"
-    file_path = photos_dir / final_filename
+        return templates.TemplateResponse(
+            "store_upload.html",
+            {
+                "request": request,
+                "app_name": settings.APP_NAME,
+                "user": None,
+                "project": project,
+                "total_products": total_products,
+                "uploaded_products": uploaded_products,
+                "missing_products": missing_products,
+                "message": "Επιτρέπονται μόνο εικόνες JPG, JPEG, PNG ή WEBP."
+            }
+        )
 
     file_bytes = await photo_file.read()
+
+    if not file_bytes:
+        total_products, uploaded_products, missing_products = count_project_products(db, project.id)
+
+        return templates.TemplateResponse(
+            "store_upload.html",
+            {
+                "request": request,
+                "app_name": settings.APP_NAME,
+                "user": None,
+                "project": project,
+                "total_products": total_products,
+                "uploaded_products": uploaded_products,
+                "missing_products": missing_products,
+                "message": "Το αρχείο φωτογραφίας είναι κενό."
+            }
+        )
+
+    project_photos_dir = PHOTOS_DIR / str(project.id)
+    project_photos_dir.mkdir(parents=True, exist_ok=True)
+
+    safe_barcode = sanitize_filename_part(product.barcode or "no_barcode", max_length=60)
+    safe_product_id = sanitize_filename_part(product.product_id or str(product.id), max_length=60)
+    safe_item_name = sanitize_filename_part(product.item_name, max_length=80)
+
+    final_filename = f"{safe_barcode}_{safe_product_id}_{safe_item_name}.{extension}"
+    file_path = project_photos_dir / final_filename
 
     with open(file_path, "wb") as f:
         f.write(file_bytes)
@@ -504,10 +697,11 @@ async def upload_product_photo(
             drive_file_id = uploaded_drive_file.get("id")
             drive_file_url = uploaded_drive_file.get("webViewLink")
 
-            try:
-                make_file_public(drive_file_id)
-            except Exception as permission_error:
-                print("ERROR making Drive file public:", str(permission_error))
+            if drive_file_id:
+                try:
+                    make_file_public(drive_file_id)
+                except Exception as permission_error:
+                    print("ERROR making Drive file public:", str(permission_error))
 
     except Exception as e:
         print("ERROR uploading photo to Drive:", str(e))
@@ -519,14 +713,12 @@ async def upload_product_photo(
 
     db.commit()
 
-    total_products = len(project.products)
-    uploaded_products = len([p for p in project.products if p.photo_status in ["uploaded", "approved"]])
-    missing_products = len([p for p in project.products if p.photo_status == "missing"])
+    total_products, uploaded_products, missing_products = count_project_products(db, project.id)
 
     return templates.TemplateResponse(
-        name="store_upload.html",
-        request=request,
-        context={
+        "store_upload.html",
+        {
+            "request": request,
             "app_name": settings.APP_NAME,
             "user": None,
             "project": project,
@@ -538,6 +730,10 @@ async def upload_product_photo(
     )
 
 
+# ============================================================
+# ADMIN PHOTO APPROVAL
+# ============================================================
+
 @app.post("/admin/products/{product_id}/approve")
 def approve_product_photo(
     product_id: int,
@@ -547,12 +743,12 @@ def approve_product_photo(
     user = get_current_user(request, db)
 
     if not user:
-        return RedirectResponse(url="/login", status_code=302)
+        return login_redirect()
 
     product = db.query(Product).filter(Product.id == product_id).first()
 
     if not product:
-        return RedirectResponse(url="/dashboard", status_code=302)
+        return dashboard_redirect()
 
     product.photo_status = "approved"
     product.reject_reason = None
@@ -575,12 +771,12 @@ def reject_product_photo(
     user = get_current_user(request, db)
 
     if not user:
-        return RedirectResponse(url="/login", status_code=302)
+        return login_redirect()
 
     product = db.query(Product).filter(Product.id == product_id).first()
 
     if not product:
-        return RedirectResponse(url="/dashboard", status_code=302)
+        return dashboard_redirect()
 
     product.photo_status = "rejected"
     product.reject_reason = reject_reason or "Η φωτογραφία χρειάζεται επανάληψη."
