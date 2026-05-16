@@ -76,14 +76,13 @@
                     </div>
                 </div>
 
-                <form
-    method="post"
-    action="/store/{{ project.project_token }}/products/{{ product.id }}/upload-photo"
-    enctype="multipart/form-data"
-    class="upload-photo-form"
->
-    <div class="photo-actions">
+       <div class="upload-photo-form">
 
+    <form
+        method="post"
+        action="/store/{{ project.project_token }}/products/{{ product.id }}/upload-photo"
+        enctype="multipart/form-data"
+    >
         <label class="button camera-button">
             📷 Λήψη φωτογραφίας
             <input
@@ -95,7 +94,13 @@
                 hidden
             >
         </label>
+    </form>
 
+    <form
+        method="post"
+        action="/store/{{ project.project_token }}/products/{{ product.id }}/upload-photo"
+        enctype="multipart/form-data"
+    >
         <label class="button secondary gallery-button">
             🖼️ Επιλογή από συσκευή
             <input
@@ -106,9 +111,9 @@
                 hidden
             >
         </label>
+    </form>
 
-    </div>
-</form>
+</div>
             </div>
             {% endfor %}
         </div>
