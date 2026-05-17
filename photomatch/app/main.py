@@ -645,6 +645,11 @@ async def upload_product_photo(
         )
 
     file_bytes = await photo_file.read()
+    print("PHOTO UPLOAD DEBUG")
+    print("filename:", photo_file.filename)
+    print("content_type:", photo_file.content_type)
+    print("bytes:", len(file_bytes) if file_bytes else 0)
+    print("project_drive_folder_id:", project.drive_folder_id)
 
     if not file_bytes or len(file_bytes) == 0:
         total_products, uploaded_products, missing_products = count_project_products(db, project.id)
