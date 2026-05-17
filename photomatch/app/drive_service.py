@@ -1,8 +1,8 @@
 import io
-import json
 from typing import Optional
 
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -14,19 +14,29 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 def get_drive_service():
     """
-    Creates Google Drive service using service account JSON
-    stored in Render environment variable.
+    Creates Google Drive service using OAuth refresh token.
+    Files are uploaded to the user's Google Drive, not to a service account.
     """
 
-    if not settings.GOOGLE_SERVICE_ACCOUNT_JSON:
-        raise ValueError("Missing GOOGLE_SERVICE_ACCOUNT_JSON environment variable.")
+    if not settings.GOOGLE_CLIENT_ID:
+        raise ValueError("Missing GOOGLE_CLIENT_ID environment variable.")
 
-    credentials_info = json.loads(settings.GOOGLE_SERVICE_ACCOUNT_JSON)
+    if not settings.GOOGLE_CLIENT_SECRET:
+        raise ValueError("Missing GOOGLE_CLIENT_SECRET environment variable.")
 
-    credentials = service_account.Credentials.from_service_account_info(
-        credentials_info,
+    if not settings.GOOGLE_REFRESH_TOKEN:
+        raise ValueError("Missing GOOGLE_REFRESH_TOKEN environment variable.")
+
+    credentials = Credentials(
+        token=None,
+        refresh_token=settings.GOOGLE_REFRESH_TOKEN,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=settings.GOOGLE_CLIENT_ID,
+        client_secret=settings.GOOGLE_CLIENT_SECRET,
         scopes=SCOPES
     )
+
+    credentials.refresh(Request())
 
     return build("drive", "v3", credentials=credentials)
 
@@ -50,7 +60,8 @@ def create_folder(
 
     folder = service.files().create(
         body=metadata,
-        fields="id, name, webViewLink"
+        fields="id, name, webViewLink",
+        supportsAllDrives=True
     ).execute()
 
     return folder
@@ -63,6 +74,9 @@ def upload_bytes_to_drive(
     folder_id: str
 ) -> dict:
     service = get_drive_service()
+
+    if not file_bytes:
+        raise ValueError("Cannot upload empty file to Google Drive.")
 
     file_metadata = {
         "name": filename,
@@ -78,7 +92,8 @@ def upload_bytes_to_drive(
     uploaded_file = service.files().create(
         body=file_metadata,
         media_body=media,
-        fields="id, name, webViewLink"
+        fields="id, name, webViewLink, size, mimeType",
+        supportsAllDrives=True
     ).execute()
 
     return uploaded_file
@@ -87,7 +102,7 @@ def upload_bytes_to_drive(
 def make_file_public(file_id: str) -> None:
     """
     Makes uploaded file readable by anyone with the link.
-    For internal/private workflows, we may remove this later.
+    For internal/private production we may disable this later.
     """
 
     service = get_drive_service()
@@ -99,7 +114,8 @@ def make_file_public(file_id: str) -> None:
 
     service.permissions().create(
         fileId=file_id,
-        body=permission
+        body=permission,
+        supportsAllDrives=True
     ).execute()
 
 
