@@ -714,6 +714,9 @@ async def upload_product_photo(
 
             drive_file_id = uploaded_drive_file.get("id")
             drive_file_url = uploaded_drive_file.get("webViewLink")
+            print("DRIVE UPLOAD SUCCESS")
+            print("drive_file_id:", drive_file_id)
+            print("drive_file_url:", drive_file_url)
 
             try:
                 if drive_file_id:
